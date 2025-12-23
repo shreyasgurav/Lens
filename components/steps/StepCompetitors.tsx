@@ -60,9 +60,33 @@ export default function StepCompetitors() {
 
   const handleAddCompetitor = () => {
     if (!newName.trim()) return;
+    const input = newName.trim();
+    
+    // Extract domain and name from URL or plain text
+    let domain = '';
+    let competitorName = '';
+    
+    try {
+      // Try to parse as URL
+      let urlToParse = input;
+      if (!input.startsWith('http://') && !input.startsWith('https://')) {
+        urlToParse = 'https://' + input;
+      }
+      const url = new URL(urlToParse);
+      domain = url.hostname.replace('www.', '');
+      // Extract company name from domain (e.g., cluely.com -> Cluely)
+      competitorName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
+    } catch {
+      // If not a valid URL, treat as company name
+      competitorName = input;
+      domain = input.toLowerCase().replace(/\s+/g, '') + '.com';
+    }
+    
     addCompetitor({
       id: `comp-${Date.now()}`,
-      name: newName.trim(),
+      name: competitorName,
+      website: domain,
+      favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
     });
     setNewName("");
   };
@@ -96,7 +120,7 @@ export default function StepCompetitors() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddCompetitor()}
             placeholder="Add competitor"
-            className="flex-1 px-0 py-3 border-0 border-b-2 border-neutral-200 text-neutral-900 text-lg placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+            className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
           />
           <button
             onClick={handleAddCompetitor}

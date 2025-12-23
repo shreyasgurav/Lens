@@ -87,8 +87,8 @@ export default function StepDescription() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Business description"
-            rows={8}
-            className="w-full px-0 py-3 border-0 border-b-2 border-neutral-200 text-neutral-900 text-lg placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent"
+            rows={6}
+            className="w-full px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent"
           />
         </div>
 

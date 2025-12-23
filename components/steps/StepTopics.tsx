@@ -99,7 +99,7 @@ export default function StepTopics() {
             onChange={(e) => setNewTopic(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddTopic()}
             placeholder="Add custom topic"
-            className="flex-1 px-0 py-3 border-0 border-b-2 border-neutral-200 text-neutral-900 text-lg placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+            className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
           />
           <button
             onClick={handleAddTopic}
@@ -110,36 +110,33 @@ export default function StepTopics() {
           </button>
         </div>
 
-        {/* Topics List */}
-        <div className="space-y-2 max-h-96 overflow-y-auto">
-        {topics.map((topic) => (
-          <div
-            key={topic.id}
-            onClick={() => toggleTopic(topic.id)}
-            className={`flex items-center justify-between px-4 py-3 rounded-lg border cursor-pointer transition-all ${
-              topic.selected
-                ? "border-neutral-900 bg-neutral-900 text-white"
-                : "border-neutral-200 text-neutral-700 hover:border-neutral-300"
-            }`}
-          >
-            <span className="text-sm">{topic.name}</span>
-            <div className="flex items-center gap-2">
-              {topic.selected && <Check className="w-4 h-4 flex-shrink-0" />}
-              {topic.id.startsWith('topic-custom-') && (
-                <button
+        {/* Topics Pills */}
+        <div className="flex flex-wrap gap-2.5 justify-center">
+          {topics.map((topic) => (
+            <button
+              key={topic.id}
+              onClick={() => toggleTopic(topic.id)}
+              className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap ${
+                topic.selected
+                  ? "bg-neutral-900 text-white"
+                  : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+              }`}
+            >
+              {topic.name}
+              {topic.id.startsWith('topic-custom-') && topic.selected && (
+                <span
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRemoveTopic(topic.id);
                   }}
-                  className="p-1 hover:bg-white/20 rounded transition-colors"
+                  className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
                 >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                  <X className="w-3 h-3" />
+                </span>
               )}
-            </div>
-          </div>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
 
         {selectedCount < minRequired && (
           <p className="text-center text-xs text-neutral-400">

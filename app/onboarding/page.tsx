@@ -38,14 +38,14 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-white flex justify-center">
       {/* Progress Indicator - Absolute Left */}
-      <div className="fixed left-12 top-1/2 -translate-y-1/2">
-        <div className="relative" style={{ height: '320px' }}>
+      <div className="fixed left-16 top-1/2 -translate-y-1/2">
+        <div className="relative" style={{ height: '280px' }}>
           {/* Background Line */}
-          <div className="absolute left-1 top-0 bottom-0 w-1 bg-neutral-200 rounded-full" />
+          <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-neutral-200 rounded-full" />
           
           {/* Progress Line - Fills as steps complete */}
           <div 
-            className="absolute left-1 top-0 w-1 bg-neutral-900 rounded-full transition-all duration-500 ease-out"
+            className="absolute left-2 top-0 w-0.5 bg-neutral-900 rounded-full transition-all duration-500 ease-out"
             style={{ 
               height: `${((currentStep - 1) / (steps.length - 1)) * 100}%` 
             }}
@@ -58,10 +58,10 @@ export default function OnboardingPage() {
                 key={step.id}
                 className="flex items-center gap-3"
               >
-                {/* Oval/Curved Dot blending with line */}
+                {/* Circular Dot centered on line */}
                 <div className="relative">
                   <div
-                    className={`w-3 h-5 rounded-full transition-all ${
+                    className={`w-5 h-5 rounded-full transition-all ${
                       step.id < currentStep
                         ? "bg-neutral-900"
                         : step.id === currentStep
@@ -90,7 +90,7 @@ export default function OnboardingPage() {
 
       {/* Main Content - Perfectly Centered */}
       <main className="flex items-center justify-center px-8 py-12 w-full">
-        <div className="w-full max-w-md">
+        <div className={`w-full transition-all ${currentStep === 3 ? 'max-w-2xl' : 'max-w-md'}`}>
           {renderStep()}
         </div>
       </main>

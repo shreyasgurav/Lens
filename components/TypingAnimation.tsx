@@ -11,12 +11,15 @@ export default function TypingAnimation({ text }: TypingAnimationProps) {
   const [showCursor, setShowCursor] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [targetText, setTargetText] = useState(text);
 
-  // Reset animation when text changes
+  // When text prop changes, trigger deletion of current text
   useEffect(() => {
-    setDisplayedText("");
-    setIsDeleting(false);
-    setIsPaused(false);
+    if (text !== targetText && displayedText.length > 0) {
+      setIsDeleting(true);
+      setIsPaused(false);
+    }
+    setTargetText(text);
   }, [text]);
 
   useEffect(() => {
@@ -29,20 +32,20 @@ export default function TypingAnimation({ text }: TypingAnimationProps) {
         setIsDeleting(true);
       }, 3000);
     } else if (isDeleting) {
-      // Delete backwards
+      // Delete backwards character by character
       if (displayedText.length > 0) {
         timeout = setTimeout(() => {
           setDisplayedText(displayedText.slice(0, -1));
-        }, 50);
+        }, 30);
       } else {
-        // Start typing again
+        // Finished deleting, start typing new text
         setIsDeleting(false);
       }
     } else {
       // Type forward
-      if (displayedText.length < text.length) {
+      if (displayedText.length < targetText.length) {
         timeout = setTimeout(() => {
-          setDisplayedText(text.slice(0, displayedText.length + 1));
+          setDisplayedText(targetText.slice(0, displayedText.length + 1));
         }, 80);
       } else {
         // Finished typing, pause
