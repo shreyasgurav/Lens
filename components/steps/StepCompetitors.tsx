@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useOnboardingStore } from "@/lib/store";
-import { ArrowRight, ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Plus, X } from "lucide-react";
+import TypingAnimation from "@/components/TypingAnimation";
 
 export default function StepCompetitors() {
   const {
@@ -72,101 +73,92 @@ export default function StepCompetitors() {
     setStep(5);
   };
 
-  return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900 mb-2">
-          Your competitors
-        </h1>
-        <p className="text-neutral-500">
-          Review and edit your competitor list.
-        </p>
-      </div>
+  if (isGeneratingCompetitors) {
+    return <TypingAnimation text="Searching competitors" />;
+  }
 
-      {isGeneratingCompetitors ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-neutral-400 mb-3" />
-          <p className="text-sm text-neutral-500">Finding competitors...</p>
+  return (
+    <div className="relative">
+      {/* Back Button - Outside */}
+      <button
+        onClick={() => setStep(3)}
+        className="absolute -left-16 top-2 flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5 text-neutral-700" />
+      </button>
+
+      <div className="space-y-8">
+        {/* Add Competitor */}
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddCompetitor()}
+            placeholder="Add competitor"
+            className="flex-1 px-0 py-3 border-0 border-b-2 border-neutral-200 text-neutral-900 text-lg placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+          />
+          <button
+            onClick={handleAddCompetitor}
+            disabled={!newName.trim()}
+            className="px-4 py-2 text-neutral-900 rounded-lg hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
         </div>
-      ) : (
-        <>
-          {/* Add Competitor */}
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddCompetitor()}
-              placeholder="Add a competitor..."
-              className="flex-1 px-4 py-2.5 border border-neutral-200 rounded-xl text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
-            />
+
+        {/* Competitors List */}
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+        {competitors.map((comp) => (
+          <div
+            key={comp.id}
+            className="flex items-center justify-between px-4 py-3 border border-neutral-200 rounded-lg hover:border-neutral-300 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              {comp.favicon ? (
+                <img src={comp.favicon} alt="" className="w-6 h-6 rounded" />
+              ) : (
+                <div className="w-6 h-6 rounded bg-neutral-200 flex items-center justify-center">
+                  <span className="text-xs font-medium text-neutral-500">{comp.name[0]}</span>
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-medium text-neutral-900">{comp.name}</p>
+                {comp.website && (
+                  <p className="text-xs text-neutral-400">{comp.website}</p>
+                )}
+              </div>
+            </div>
             <button
-              onClick={handleAddCompetitor}
-              disabled={!newName.trim()}
-              className="px-4 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl hover:bg-neutral-200 disabled:opacity-50 transition-colors"
+              onClick={() => removeCompetitor(comp.id)}
+              className="p-1.5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
+        ))}
+      </div>
 
-          {/* Competitors List */}
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {competitors.map((comp) => (
-              <div
-                key={comp.id}
-                className="flex items-center justify-between px-4 py-3 bg-neutral-50 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  {comp.favicon ? (
-                    <img src={comp.favicon} alt="" className="w-6 h-6 rounded" />
-                  ) : (
-                    <div className="w-6 h-6 rounded bg-neutral-200 flex items-center justify-center">
-                      <span className="text-xs font-medium text-neutral-500">{comp.name[0]}</span>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900">{comp.name}</p>
-                    {comp.website && (
-                      <p className="text-xs text-neutral-400">{comp.website}</p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => removeCompetitor(comp.id)}
-                  className="p-1.5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-200 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-neutral-400 mt-3">
-            {competitors.length} competitor{competitors.length !== 1 ? "s" : ""} added
+        {competitors.length > 0 && (
+          <p className="text-xs text-neutral-400 text-center">
+            {competitors.length} competitor{competitors.length !== 1 ? "s" : ""}
           </p>
-        </>
-      )}
+        )}
 
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={() => setStep(3)}
-          className="flex items-center justify-center gap-2 px-6 py-3 border border-neutral-200 rounded-xl font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
-        <button
-          onClick={handleContinue}
-          disabled={competitors.length === 0}
-          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-            competitors.length > 0
-              ? "bg-neutral-900 text-white hover:bg-neutral-800"
-              : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-          }`}
-        >
-          Continue
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleContinue}
+            disabled={competitors.length === 0}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-medium transition-all ${
+              competitors.length > 0
+                ? "bg-neutral-900 text-white hover:bg-neutral-800"
+                : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+            }`}
+          >
+            Continue
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

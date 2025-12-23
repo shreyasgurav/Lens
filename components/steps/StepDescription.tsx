@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useOnboardingStore } from "@/lib/store";
-import { ArrowRight, ArrowLeft, RefreshCw, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
+import TypingAnimation from "@/components/TypingAnimation";
 
 export default function StepDescription() {
   const {
@@ -66,69 +67,49 @@ export default function StepDescription() {
 
   const isValid = text.trim().length > 0 && text.length <= maxChars;
 
+  if (isGeneratingDescription) {
+    return <TypingAnimation text="Generating description" />;
+  }
+
   return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900 mb-2">
-          Describe your business
-        </h1>
-        <p className="text-neutral-500">
-          We've analyzed your website. Edit the description below.
-        </p>
-      </div>
+    <div className="relative">
+      {/* Back Button - Outside */}
+      <button
+        onClick={() => setStep(1)}
+        className="absolute -left-16 top-2 flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5 text-neutral-700" />
+      </button>
 
-      <div className="relative">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          disabled={isGeneratingDescription}
-          placeholder="Describe your business..."
-          rows={5}
-          className="w-full px-4 py-3 border border-neutral-200 rounded-xl text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all resize-none disabled:bg-neutral-50"
-        />
-        
-        {isGeneratingDescription && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 rounded-xl">
-            <Loader2 className="w-6 h-6 animate-spin text-neutral-600 mb-2" />
-            <p className="text-sm text-neutral-500">{status}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mt-3">
-        <div className="flex items-center gap-3">
-          <span className={`text-xs ${text.length > maxChars ? "text-red-500" : "text-neutral-400"}`}>
-            {text.length}/{maxChars}
-          </span>
-          {detectedCategory && !isGeneratingDescription && (
-            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
-              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-              {detectedCategory}
-            </div>
-          )}
+      <div className="space-y-8">
+        <div className="relative">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Business description"
+            rows={8}
+            className="w-full px-0 py-3 border-0 border-b-2 border-neutral-200 text-neutral-900 text-lg placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent"
+          />
         </div>
+
+      <div className="flex items-center justify-between">
+        <span className={`text-xs ${text.length > maxChars ? "text-red-500" : "text-neutral-400"}`}>
+          {text.length}/{maxChars}
+        </span>
         <button
           onClick={generateDescription}
-          disabled={isGeneratingDescription}
-          className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 disabled:text-neutral-300 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingDescription ? "animate-spin" : ""}`} />
+          <RefreshCw className="w-3.5 h-3.5" />
           Regenerate
         </button>
       </div>
 
-      <div className="flex gap-3 mt-8">
-        <button
-          onClick={() => setStep(1)}
-          className="flex items-center justify-center gap-2 px-6 py-3 border border-neutral-200 rounded-xl font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+      <div className="flex gap-3">
         <button
           onClick={handleContinue}
           disabled={!isValid}
-          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-medium transition-all ${
             isValid
               ? "bg-neutral-900 text-white hover:bg-neutral-800"
               : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
@@ -137,6 +118,7 @@ export default function StepDescription() {
           Continue
           <ArrowRight className="w-4 h-4" />
         </button>
+      </div>
       </div>
     </div>
   );

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/lib/store";
-import { ArrowLeft, Loader2, Check, TrendingUp, BarChart3 } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
+import TypingAnimation from "@/components/TypingAnimation";
 
 export default function StepAnalysis() {
   const router = useRouter();
@@ -23,6 +24,25 @@ export default function StepAnalysis() {
 
   const [progress, setProgress] = useState(0);
   const [currentQuery, setCurrentQuery] = useState("");
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+
+  const analysisMessages = [
+    "Analyzing your positioning",
+    "Analyzing competitors",
+    "Evaluating topic coverage",
+    "Calculating visibility metrics",
+  ];
+
+  // Cycle through messages independently
+  useEffect(() => {
+    if (!isSimulating) return;
+    
+    const messageInterval = setInterval(() => {
+      setCurrentMessageIndex((prev) => (prev + 1) % analysisMessages.length);
+    }, 3000); // Change message every 3 seconds
+
+    return () => clearInterval(messageInterval);
+  }, [isSimulating, analysisMessages.length]);
 
   const selectedTopics = topics.filter((t) => t.selected);
 
@@ -41,12 +61,16 @@ export default function StepAnalysis() {
 
     setIsSimulating(true);
     setProgress(0);
+    setCurrentMessageIndex(0);
     const allResults: typeof simulationResults = [];
 
     for (let i = 0; i < selectedTopics.length; i++) {
       const topic = selectedTopics[i];
       setCurrentQuery(topic.name);
-      setProgress(Math.round(((i + 0.5) / selectedTopics.length) * 100));
+      
+      // Update progress
+      const currentProgress = (i / selectedTopics.length) * 100;
+      setProgress(Math.round(currentProgress));
 
       const requestBody = {
         topic: topic.name,
@@ -119,111 +143,78 @@ export default function StepAnalysis() {
   const mentionedCount = simulationResults.filter((r) => r.yourBrandMentioned).length;
   const visibilityPercent = simulationResults.length > 0 ? (mentionedCount / simulationResults.length) * 100 : 0;
 
-  return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900 mb-2">
-          {isSimulating ? "Analyzing AI responses..." : "Analysis Complete"}
-        </h1>
-        <p className="text-neutral-500">
-          {isSimulating 
-            ? "We're simulating AI searches for your selected topics."
-            : "Here's how you appear in AI-generated responses."
-          }
-        </p>
-      </div>
-
-      {isSimulating ? (
-        <div className="py-8">
-          <div className="flex items-center justify-center mb-6">
-            <Loader2 className="w-10 h-10 animate-spin text-neutral-400" />
+  if (isSimulating) {
+    const currentMessage = analysisMessages[currentMessageIndex];
+    return (
+      <div className="space-y-8">
+        <TypingAnimation text={currentMessage} />
+        {/* Minimal Progress Bar */}
+        <div className="w-full max-w-xs mx-auto">
+          <div className="h-1 bg-neutral-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-neutral-900 transition-all duration-500 ease-out" 
+              style={{ width: `${progress}%` }} 
+            />
           </div>
-          
-          <div className="mb-4">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-neutral-500">Progress</span>
-              <span className="font-medium text-neutral-900">{progress}%</span>
-            </div>
-            <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-neutral-900 transition-all duration-300" 
-                style={{ width: `${progress}%` }} 
-              />
-            </div>
-          </div>
-          
-          <p className="text-sm text-center text-neutral-500 truncate">
-            {currentQuery}
-          </p>
         </div>
-      ) : (
-        <>
-          {/* Results Summary */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="p-4 bg-neutral-50 rounded-xl">
-              <div className="flex items-center gap-2 mb-1">
-                <BarChart3 className="w-4 h-4 text-neutral-500" />
-                <span className="text-sm text-neutral-500">Visibility</span>
-              </div>
-              <p className="text-2xl font-semibold text-neutral-900">{visibilityPercent.toFixed(1)}%</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {/* Back Button - Outside */}
+      <button
+        onClick={() => setStep(4)}
+        className="absolute -left-16 top-2 flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5 text-neutral-700" />
+      </button>
+
+      <div className="space-y-8">
+        {/* Results Summary */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="text-center">
+            <p className="text-3xl font-semibold text-neutral-900 mb-1">{visibilityPercent.toFixed(0)}%</p>
+            <p className="text-xs text-neutral-500">Visibility</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-semibold text-neutral-900 mb-1">{mentionedCount}/{simulationResults.length}</p>
+            <p className="text-xs text-neutral-500">Mentions</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-semibold text-neutral-900 mb-1">{selectedTopics.length}</p>
+            <p className="text-xs text-neutral-500">Topics</p>
+          </div>
+        </div>
+
+        {/* Sample Results */}
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+        {simulationResults.slice(0, 5).map((result, i) => (
+          <div key={i} className="flex items-start gap-3 p-3 border border-neutral-200 rounded-lg">
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+              result.yourBrandMentioned ? "bg-neutral-900 text-white" : "bg-neutral-200 text-neutral-500"
+            }`}>
+              {result.yourBrandMentioned ? <Check className="w-3 h-3" /> : <span className="text-xs">—</span>}
             </div>
-            <div className="p-4 bg-neutral-50 rounded-xl">
-              <div className="flex items-center gap-2 mb-1">
-                <Check className="w-4 h-4 text-neutral-500" />
-                <span className="text-sm text-neutral-500">Mentions</span>
-              </div>
-              <p className="text-2xl font-semibold text-neutral-900">{mentionedCount}/{simulationResults.length}</p>
-            </div>
-            <div className="p-4 bg-neutral-50 rounded-xl">
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-neutral-500" />
-                <span className="text-sm text-neutral-500">Topics</span>
-              </div>
-              <p className="text-2xl font-semibold text-neutral-900">{selectedTopics.length}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-neutral-900 truncate">{result.query}</p>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {result.yourBrandMentioned ? `#${result.yourBrandPosition}` : "Not mentioned"}
+              </p>
             </div>
           </div>
+        ))}
+        </div>
 
-          {/* Sample Results */}
-          <div className="space-y-3 max-h-48 overflow-y-auto">
-            {simulationResults.slice(0, 4).map((result, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-xl">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  result.yourBrandMentioned ? "bg-green-100 text-green-600" : "bg-neutral-200 text-neutral-500"
-                }`}>
-                  {result.yourBrandMentioned ? <Check className="w-3.5 h-3.5" /> : <span className="text-xs">—</span>}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-neutral-900 truncate">{result.query}</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    {result.yourBrandMentioned ? `Ranked #${result.yourBrandPosition}` : "Not mentioned"}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={() => setStep(4)}
-          disabled={isSimulating}
-          className="flex items-center justify-center gap-2 px-6 py-3 border border-neutral-200 rounded-xl font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
-        <button
-          onClick={() => router.push("/dashboard")}
-          disabled={isSimulating}
-          className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-            !isSimulating
-              ? "bg-neutral-900 text-white hover:bg-neutral-800"
-              : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-          }`}
-        >
-          View Dashboard
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-medium bg-neutral-900 text-white hover:bg-neutral-800 transition-all"
+          >
+            View Dashboard
+          </button>
+        </div>
       </div>
     </div>
   );
