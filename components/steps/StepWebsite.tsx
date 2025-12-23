@@ -45,18 +45,20 @@ export default function StepWebsite() {
         </div>
       </div>
 
-      <button
-        onClick={handleContinue}
-        disabled={!isValid}
-        className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-medium transition-all ${
-          isValid
-            ? "bg-neutral-900 text-white hover:bg-neutral-800"
-            : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-        }`}
-      >
-        Continue
-        <ArrowRight className="w-4 h-4" />
-      </button>
+      <div className="flex justify-center">
+        <button
+          onClick={handleContinue}
+          disabled={!isValid}
+          className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all ${
+            isValid
+              ? "bg-neutral-900 text-white hover:bg-neutral-800"
+              : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+          }`}
+        >
+          Continue
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
