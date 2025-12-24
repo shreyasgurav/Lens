@@ -47,14 +47,18 @@ export default function StepAnalysis() {
 
   const selectedTopics = topics.filter((t) => t.selected);
 
+  // Use a ref to track if simulation has been initiated
+  const [hasInitiated, setHasInitiated] = useState(false);
+
   useEffect(() => {
-    if (simulationResults.length === 0 && !isSimulating) {
+    if (simulationResults.length === 0 && !isSimulating && !hasInitiated) {
+      setHasInitiated(true);
       runSimulation();
     }
-  }, []);
+  }, [simulationResults.length, isSimulating, hasInitiated]);
 
   const runSimulation = async () => {
-    console.log('Starting simulation with:', {
+    console.log('Starting parallel simulation with:', {
       selectedTopicsCount: selectedTopics.length,
       companyName,
       competitorsCount: competitors.length
@@ -63,16 +67,13 @@ export default function StepAnalysis() {
     setIsSimulating(true);
     setProgress(0);
     setCurrentMessageIndex(0);
-    const allResults: typeof simulationResults = [];
 
-    for (let i = 0; i < selectedTopics.length; i++) {
-      const topic = selectedTopics[i];
-      setCurrentQuery(topic.name);
-      
-      // Update progress
-      const currentProgress = (i / selectedTopics.length) * 100;
-      setProgress(Math.round(currentProgress));
+    // Track completed simulations for progress
+    let completedCount = 0;
+    const totalCount = selectedTopics.length;
 
+    // Run all simulations in parallel
+    const simulationPromises = selectedTopics.map((topic, i) => {
       const requestBody = {
         topic: topic.name,
         companyName,
@@ -80,47 +81,46 @@ export default function StepAnalysis() {
         competitors: competitors.map((c) => c.name),
       };
 
-      console.log(`Simulating topic ${i + 1}/${selectedTopics.length}:`, topic.name);
+      console.log(`Starting simulation ${i + 1}/${totalCount}:`, topic.name);
 
-      try {
-        const response = await fetch("/api/simulate-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
+      return fetch("/api/simulate-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      })
+        .then(response => response.json())
+        .then(data => {
+          console.log(`Completed simulation for "${topic.name}":`, { 
+            success: data.success, 
+            resultsCount: data.results?.length 
+          });
+          
+          // Update progress as each completes
+          completedCount++;
+          setProgress(Math.round((completedCount / totalCount) * 100));
+          
+          return data;
+        })
+        .catch(error => {
+          console.error(`Simulation error for "${topic.name}":`, error);
+          completedCount++;
+          setProgress(Math.round((completedCount / totalCount) * 100));
+          return { success: false, results: [] };
         });
-        
-        const data = await response.json();
-        console.log('API response:', { 
-          success: data.success, 
-          resultsCount: data.results?.length, 
-          error: data.error,
-          sampleResult: data.results?.[0] 
-        });
-        
-        if (data.success && data.results) {
-          // Log detailed info about first result
-          if (data.results.length > 0) {
-            const firstResult = data.results[0];
-            console.log('First result details:', {
-              query: firstResult.query,
-              yourBrandMentioned: firstResult.yourBrandMentioned,
-              mentionedBrandsCount: firstResult.mentionedBrands?.length,
-              brandNames: firstResult.mentionedBrands?.map((b: any) => b.name)
-            });
-          }
-          allResults.push(...data.results);
-          console.log(`Added ${data.results.length} results. Total: ${allResults.length}`);
-        } else {
-          console.error('API returned error:', data);
-        }
-      } catch (error) {
-        console.error("Simulation error:", error);
+    });
+
+    // Wait for all simulations to complete
+    const allResponses = await Promise.all(simulationPromises);
+    
+    // Collect all results
+    const allResults: typeof simulationResults = [];
+    allResponses.forEach(data => {
+      if (data.success && data.results) {
+        allResults.push(...data.results);
       }
+    });
 
-      setProgress(Math.round(((i + 1) / selectedTopics.length) * 100));
-    }
-
-    console.log('Simulation complete. Total results:', allResults.length);
+    console.log('All simulations complete. Total results:', allResults.length);
 
     setSimulationResults(allResults);
     calculateMetrics(allResults);

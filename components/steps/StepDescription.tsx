@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useOnboardingStore } from "@/lib/store";
 import { ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import TypingAnimation from "@/components/TypingAnimation";
@@ -23,6 +23,15 @@ export default function StepDescription() {
   const [detectedCategory, setDetectedCategory] = useState(category);
   const [status, setStatus] = useState("");
   const hasGenerated = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea - use useLayoutEffect to prevent layout shifts
+  useLayoutEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 400) + "px";
+    }
+  }, [text]);
 
   useEffect(() => {
     if (!description && !isGeneratingDescription && !hasGenerated.current) {
@@ -36,7 +45,7 @@ export default function StepDescription() {
   const generateDescription = async () => {
     setIsGeneratingDescription(true);
     setStatus("Analyzing website...");
-    
+
     try {
       const response = await fetch("/api/generate-description", {
         method: "POST",
@@ -44,7 +53,7 @@ export default function StepDescription() {
         body: JSON.stringify({ url: websiteUrl, companyName }),
       });
       const data = await response.json();
-      
+
       if (data.success && data.description) {
         setText(data.description);
         setDescription(data.description);
@@ -82,41 +91,39 @@ export default function StepDescription() {
         <ArrowLeft className="w-5 h-5 text-neutral-700" />
       </button>
 
-      <div className="space-y-6 sm:space-y-8">
+      <div className="space-y-4">
         <div className="relative">
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Business description"
-            rows={10}
-            className="w-full px-0 py-2 sm:py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-sm sm:text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent"
+            className="w-full px-0 py-2 sm:py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-sm sm:text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent overflow-y-auto"
+            style={{ minHeight: "60px", maxHeight: "400px" }}
           />
         </div>
 
-      <div className="flex items-center justify-end">
-        <button
-          onClick={generateDescription}
-          className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Regenerate
-        </button>
-      </div>
+        <div className="flex items-center justify-between pt-2">
+          <button
+            onClick={generateDescription}
+            className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Regenerate
+          </button>
 
-      <div className="flex justify-center">
-        <button
-          onClick={handleContinue}
-          disabled={!isValid}
-          className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all ${
-            isValid
+          <button
+            onClick={handleContinue}
+            disabled={!isValid}
+            className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all ${isValid
               ? "bg-neutral-900 text-white hover:bg-neutral-800"
               : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-          }`}
-        >
-          Continue
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
+              }`}
+          >
+            Continue
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

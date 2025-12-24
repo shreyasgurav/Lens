@@ -94,10 +94,19 @@ Identify 10 REAL competitors with their actual websites:`,
       competitors = [];
     }
 
-    // Filter out any invalid entries
-    competitors = competitors.filter(
-      (c) => c.name && c.name.length > 1 && c.name.length < 50
-    );
+    // Filter out any invalid entries AND the user's own brand
+    const companyNameLower = companyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    competitors = competitors.filter((c) => {
+      if (!c.name || c.name.length <= 1 || c.name.length >= 50) return false;
+      
+      // Exclude if competitor name matches company name (various formats)
+      const competitorNameLower = c.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (competitorNameLower === companyNameLower) return false;
+      if (c.name.toLowerCase().includes(companyName.toLowerCase())) return false;
+      if (companyName.toLowerCase().includes(c.name.toLowerCase()) && c.name.length > 3) return false;
+      
+      return true;
+    });
 
     // Verify websites exist (basic check - try to get favicon)
     const verifiedCompetitors = await Promise.all(
@@ -111,7 +120,7 @@ Identify 10 REAL competitors with their actual websites:`,
             return {
               ...comp,
               website: domain,
-              favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
+              favicon: `https://icons.duckduckgo.com/ip3/${domain}.ico`,
             };
           }
         } catch {

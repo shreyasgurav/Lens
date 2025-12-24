@@ -50,7 +50,7 @@ interface ChatMessage {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { companyName, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete } = useOnboardingStore();
+  const { companyName, websiteUrl, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete } = useOnboardingStore();
   const [selectedView, setSelectedView] = useState<string>("dashboard");
   const [visibleCompetitors, setVisibleCompetitors] = useState<Set<string>>(new Set());
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
@@ -109,17 +109,33 @@ export default function DashboardPage() {
     
     return Array.from(mentionCounts.entries())
       .map(([name, mentions]) => {
+        const isYourBrand = name.toLowerCase() === companyName.toLowerCase();
         const competitor = competitors.find(c => c.name.toLowerCase() === name.toLowerCase());
+        
+        // Get favicon: use websiteUrl for your brand, competitor favicon for others
+        let favicon = null;
+        if (isYourBrand && websiteUrl) {
+          try {
+            const url = new URL(websiteUrl);
+            // Use DuckDuckGo for better reliability
+            favicon = `https://icons.duckduckgo.com/ip3/${url.hostname}.ico`;
+          } catch (e) {
+            favicon = null;
+          }
+        } else {
+          favicon = competitor?.favicon || null;
+        }
+        
         return {
           name,
           mentions,
           visibility: total > 0 ? (mentions / total) * 100 : 0,
-          isYou: name.toLowerCase() === companyName.toLowerCase(),
-          favicon: competitor?.favicon || null,
+          isYou: isYourBrand,
+          favicon,
         };
       })
       .sort((a, b) => b.mentions - a.mentions);
-  }, [simulationResults, companyName, competitors]);
+  }, [simulationResults, companyName, competitors, websiteUrl]);
 
   // Generate chart data from actual simulation results
   const chartData = useMemo(() => {
@@ -319,11 +335,56 @@ export default function DashboardPage() {
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-neutral-200 flex flex-col fixed h-full">
         {/* Logo */}
-        <div className="p-4 flex items-center gap-3 border-b border-neutral-100">
+        <div className="p-4 flex items-center gap-2.5 border-b border-neutral-100">
           <div className="w-8 h-8 bg-neutral-900 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">L</span>
           </div>
-          <span className="font-semibold text-neutral-900">Lens</span>
+          
+          {websiteUrl && (
+            <>
+              <div className="w-px h-5 bg-neutral-200" />
+              {(() => {
+                try {
+                  const url = new URL(websiteUrl);
+                  const hostname = url.hostname;
+                  // Use DuckDuckGo favicon service - often more reliable
+                  const favicon = `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+                  return (
+                    <div className="relative">
+                      <img 
+                        src={favicon} 
+                        alt={companyName}
+                        className="w-6 h-6 rounded bg-white"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          // Try Google as fallback if DuckDuckGo fails
+                          if (target.src.includes('duckduckgo')) {
+                            target.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+                          } else {
+                            target.style.display = 'none';
+                            const fallback = target.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }
+                        }}
+                      />
+                      <div 
+                        className="w-6 h-6 bg-neutral-200 rounded flex items-center justify-center text-neutral-600 text-xs font-bold"
+                        style={{ display: 'none' }}
+                      >
+                        {companyName[0]}
+                      </div>
+                    </div>
+                  );
+                } catch (e) {
+                  return (
+                    <div className="w-6 h-6 bg-neutral-200 rounded flex items-center justify-center text-neutral-600 text-xs font-bold">
+                      {companyName[0]}
+                    </div>
+                  );
+                }
+              })()}
+            </>
+          )}
         </div>
 
         {/* Navigation */}
@@ -406,16 +467,7 @@ export default function DashboardPage() {
         {/* Header */}
         <header className="bg-white border-b border-neutral-200 px-6 py-4 sticky top-0 z-10">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-semibold text-neutral-900">{companyName}</h1>
-              <p className="text-sm text-neutral-500">AI Visibility Dashboard</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50">
-                Last 7 days
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <h1 className="text-lg font-semibold text-neutral-900">{companyName}</h1>
           </div>
         </header>
 
@@ -456,7 +508,18 @@ export default function DashboardPage() {
                     <span className="text-sm text-neutral-500">Top Competitor</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    {topCompetitor?.favicon ? (
+                      <img 
+                        src={topCompetitor.favicon} 
+                        alt={topCompetitor.name}
+                        className="w-8 h-8 rounded-lg object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center ${topCompetitor?.favicon ? 'hidden' : ''}`}>
                       <span className="text-emerald-600 font-bold text-sm">{topCompetitor?.name[0] || "?"}</span>
                     </div>
                     <div>
