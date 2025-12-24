@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useOnboardingStore } from "@/lib/store";
 import { ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import TypingAnimation from "@/components/TypingAnimation";
@@ -22,15 +22,16 @@ export default function StepDescription() {
   const [text, setText] = useState(description);
   const [detectedCategory, setDetectedCategory] = useState(category);
   const [status, setStatus] = useState("");
-  const maxChars = 500;
+  const hasGenerated = useRef(false);
 
   useEffect(() => {
-    if (!description && !isGeneratingDescription) {
+    if (!description && !isGeneratingDescription && !hasGenerated.current) {
+      hasGenerated.current = true;
       generateDescription();
     } else if (description) {
       setText(description);
     }
-  }, []);
+  }, [description, isGeneratingDescription]);
 
   const generateDescription = async () => {
     setIsGeneratingDescription(true);
@@ -65,7 +66,7 @@ export default function StepDescription() {
     setStep(3);
   };
 
-  const isValid = text.trim().length > 0 && text.length <= maxChars;
+  const isValid = text.trim().length > 0;
 
   if (isGeneratingDescription) {
     return <TypingAnimation text="Generating description" />;
@@ -76,26 +77,23 @@ export default function StepDescription() {
       {/* Back Button - Outside */}
       <button
         onClick={() => setStep(1)}
-        className="absolute -left-16 top-2 flex items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 transition-colors"
+        className="hidden lg:flex absolute -left-16 top-2 items-center justify-center w-9 h-9 rounded-lg hover:bg-neutral-100 transition-colors"
       >
         <ArrowLeft className="w-5 h-5 text-neutral-700" />
       </button>
 
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         <div className="relative">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Business description"
-            rows={6}
-            className="w-full px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent"
+            rows={10}
+            className="w-full px-0 py-2 sm:py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-sm sm:text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors resize-none bg-transparent"
           />
         </div>
 
-      <div className="flex items-center justify-between">
-        <span className={`text-xs ${text.length > maxChars ? "text-red-500" : "text-neutral-400"}`}>
-          {text.length}/{maxChars}
-        </span>
+      <div className="flex items-center justify-end">
         <button
           onClick={generateDescription}
           className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useOnboardingStore } from "@/lib/store";
 import { ArrowRight, ArrowLeft, Check, Plus, X } from "lucide-react";
 import TypingAnimation from "@/components/TypingAnimation";
@@ -24,12 +24,14 @@ export default function StepTopics() {
   const [newTopic, setNewTopic] = useState("");
   const selectedCount = topics.filter((t) => t.selected).length;
   const minRequired = 3;
+  const hasGenerated = useRef(false);
 
   useEffect(() => {
-    if (topics.length === 0 && !isGeneratingTopics) {
+    if (topics.length === 0 && !isGeneratingTopics && !hasGenerated.current) {
+      hasGenerated.current = true;
       generateTopics();
     }
-  }, []);
+  }, [topics.length, isGeneratingTopics]);
 
   const generateTopics = async () => {
     setIsGeneratingTopics(true);

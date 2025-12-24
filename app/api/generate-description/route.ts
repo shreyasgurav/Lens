@@ -62,26 +62,29 @@ Keep it factual and concise (max 300 words). If you don't have information, say 
       messages: [
         {
           role: "system",
-          content: `You are a business analyst expert at understanding what companies do.
+          content: `You are a business analyst expert. Generate a focused, informative product description.
 
-Your task is to generate a clear, factual business description using ALL available information: scraped website data, external research, and your knowledge.
+CRITICAL: The description's PRIMARY PURPOSE is to help identify the right competitors and relevant topics. Be specific about WHAT the product is and its key capabilities.
 
-CRITICAL RULES:
-- Maximum 500 characters
-- Prioritize information in this order: 1) Scraped website content, 2) External research, 3) Your knowledge
-- Focus on: What the product/service IS, WHO it's for, HOW it works
-- Include specific capabilities when available
-- Write in third person ("Company X is..." or "Product X provides...")
-- Be specific about features, use cases, or target audience
-- If website content is minimal, use external research and your knowledge to fill gaps
-- DO NOT include pricing, contact info, or calls to action
-- Avoid vague phrases like "comprehensive solution" - be concrete
+RULES:
+- Write 3-5 sentences (300-400 characters)
+- Focus on: WHAT it is, WHO it's for, CORE functions, KEY features
+- Be specific about product category and main capabilities
+- Include 2-3 concrete features or use cases
+- NO marketing fluff, NO adjectives like "powerful", "innovative", "seamless"
+- Write in third person
+- Prioritize: 1) Scraped content, 2) External research, 3) Your knowledge
 
-IMPORTANT: Even if website content is limited, generate a useful description based on what you know about the company from external sources or your training data. Don't say "cannot formulate description" unless you truly have zero information.
+GOOD EXAMPLES:
+"Notion is a workspace tool for creating docs, wikis, and databases. Teams use it for project management, documentation, and knowledge bases. It supports kanban boards, calendars, and real-time collaboration. Users can create custom templates and integrate with tools like Slack and Google Drive."
 
-Good example: "Notion is a workspace tool that combines notes, docs, wikis, and project management. Users can create databases, kanban boards, and collaborative documents. It integrates with Slack, Google Drive, and Figma, and is used by teams for documentation and task tracking."
+"Stripe is a payment processing platform for online businesses. It handles credit cards, subscriptions, and payouts via API. Developers use it to build checkout flows, manage recurring billing, and handle global payments. It supports over 135 currencies and payment methods."
 
-Bad example: "Notion is a powerful all-in-one productivity platform that helps teams work better together with innovative features."`,
+"Figma is a web-based design tool for UI/UX designers. It enables real-time collaboration on interface designs and prototypes. Teams use it for wireframing, design systems, and developer handoff. It works in the browser and supports plugins."
+
+BAD EXAMPLES:
+"Notion is a powerful all-in-one productivity platform that revolutionizes collaboration."
+"Stripe provides innovative payment solutions that seamlessly integrate with your business."`,
         },
         {
           role: "user",
@@ -91,11 +94,11 @@ Bad example: "Notion is a powerful all-in-one productivity platform that helps t
 ${formattedContent}
 ===== END SCRAPED DATA =====
 
-Based on this ACTUAL website content, generate a precise business description (max 500 chars):`,
+Generate a focused description (3-5 sentences, include key features and use cases):`,
         },
       ],
-      max_tokens: 250,
-      temperature: 0.5, // Lower temperature for more factual output
+      max_tokens: 300,
+      temperature: 0.5,
     });
 
     const description = completion.choices[0]?.message?.content?.trim() || "";
@@ -123,7 +126,7 @@ Output ONLY the category, nothing else.`,
 
     return NextResponse.json({
       success: true,
-      description: description.slice(0, 500),
+      description: description,
       category,
       scrapedFeatures: scrapedData.productFeatures.slice(0, 10),
       scrapedKeywords: scrapedData.keywords.slice(0, 10),

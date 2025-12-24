@@ -15,6 +15,7 @@ import {
   BookOpen,
   LogOut,
   ChevronDown,
+  ChevronUp,
   Info,
   ExternalLink,
   AlertCircle,
@@ -49,9 +50,11 @@ interface ChatMessage {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { companyName, metrics, competitors, simulationResults, topics } = useOnboardingStore();
+  const { companyName, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete } = useOnboardingStore();
   const [selectedView, setSelectedView] = useState<string>("dashboard");
   const [visibleCompetitors, setVisibleCompetitors] = useState<Set<string>>(new Set());
+  const [expandedSource, setExpandedSource] = useState<number | null>(null);
+  const [expandedAction, setExpandedAction] = useState<string | null>(null);
   
   // Agent Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -105,29 +108,57 @@ export default function DashboardPage() {
     const total = simulationResults.length;
     
     return Array.from(mentionCounts.entries())
-      .map(([name, mentions]) => ({
-        name,
-        mentions,
-        visibility: total > 0 ? (mentions / total) * 100 : 0,
-        isYou: name.toLowerCase() === companyName.toLowerCase(),
-      }))
+      .map(([name, mentions]) => {
+        const competitor = competitors.find(c => c.name.toLowerCase() === name.toLowerCase());
+        return {
+          name,
+          mentions,
+          visibility: total > 0 ? (mentions / total) * 100 : 0,
+          isYou: name.toLowerCase() === companyName.toLowerCase(),
+          favicon: competitor?.favicon || null,
+        };
+      })
       .sort((a, b) => b.mentions - a.mentions);
   }, [simulationResults, companyName, competitors]);
 
-  // Generate chart data (simulated time series)
+  // Generate chart data from actual simulation results
   const chartData = useMemo(() => {
-    const dates = ["Oct 28", "Oct 30", "Nov 01", "Nov 03", "Nov 05", "Nov 07"];
-    return dates.map((date, i) => {
-      const data: Record<string, string | number> = { date };
-      competitorRankings.forEach((comp, j) => {
-        // Simulate some variation in data
-        const baseValue = comp.visibility;
-        const variation = (Math.sin(i + j) * 10) + (Math.random() * 5 - 2.5);
-        data[comp.name] = Math.max(0, Math.min(100, baseValue + variation)).toFixed(1);
+    if (!simulationResults.length) return [];
+    
+    // Group results by topic to create data points
+    const topicGroups = new Map<string, Map<string, number>>();
+    
+    simulationResults.forEach((result, idx) => {
+      const topicName = topics.find(t => 
+        result.query.toLowerCase().includes(t.name.toLowerCase().split(' ')[0])
+      )?.name || `Query ${idx + 1}`;
+      
+      if (!topicGroups.has(topicName)) {
+        topicGroups.set(topicName, new Map());
+      }
+      
+      const topicData = topicGroups.get(topicName)!;
+      
+      // Track which brands were mentioned
+      if (result.yourBrandMentioned) {
+        topicData.set(companyName, (topicData.get(companyName) || 0) + 1);
+      }
+      
+      result.mentionedBrands?.forEach(brand => {
+        topicData.set(brand.name, (topicData.get(brand.name) || 0) + 1);
+      });
+    });
+    
+    // Convert to chart format
+    return Array.from(topicGroups.entries()).map(([topic, brandCounts]) => {
+      const data: Record<string, string | number> = { date: topic };
+      competitorRankings.forEach(comp => {
+        const count = brandCounts.get(comp.name) || 0;
+        data[comp.name] = count > 0 ? 100 : 0; // Show 100% if mentioned, 0% if not
       });
       return data;
     });
-  }, [competitorRankings]);
+  }, [competitorRankings, simulationResults, topics, companyName]);
 
   // Citation share
   const citationShare = useMemo(() => {
@@ -304,7 +335,6 @@ export default function DashboardPage() {
               { id: "dashboard", icon: BarChart3, label: "Dashboard" },
               { id: "prompts", icon: MessageSquare, label: "Prompts" },
               { id: "topics", icon: FileText, label: "Topics" },
-              { id: "competitors", icon: Users, label: "Competitors" },
               { id: "sources", icon: ExternalLink, label: "Sources" },
             ].map(item => (
               <button
@@ -335,7 +365,6 @@ export default function DashboardPage() {
             >
               <Bot className="w-4 h-4" />
               AI Agent
-              <Sparkles className="w-3 h-3 ml-auto text-blue-500" />
             </button>
             <button
               onClick={() => setSelectedView("actions")}
@@ -347,9 +376,11 @@ export default function DashboardPage() {
             >
               <Zap className="w-4 h-4" />
               Action Center
-              <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {generateSuggestions.length}
-              </span>
+              {actions.filter(a => a.priority === 'high').length > 0 && (
+                <span className="ml-auto w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {actions.filter(a => a.priority === 'high').length}
+                </span>
+              )}
             </button>
           </div>
         </nav>
@@ -437,13 +468,13 @@ export default function DashboardPage() {
               </div>
 
               {/* Charts Row */}
-              <div className="grid grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 {/* Line Chart */}
-                <div className="col-span-3 bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="bg-white rounded-xl border border-neutral-200 p-5">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-neutral-900">Competitor Visibility</h3>
-                      <p className="text-xs text-neutral-500">Visibility trend over time</p>
+                      <h3 className="font-semibold text-neutral-900">Competitor Visibility by Topic</h3>
+                      <p className="text-xs text-neutral-500">Which brands appear in each topic area</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {competitorRankings.slice(0, 5).map((comp, i) => (
@@ -498,62 +529,46 @@ export default function DashboardPage() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-
-                {/* Rankings Table */}
-                <div className="col-span-2 bg-white rounded-xl border border-neutral-200 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-neutral-900">Competitor Rankings</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {competitorRankings.slice(0, 6).map((comp, i) => {
-                      const trend = Math.random() > 0.5 ? "up" : Math.random() > 0.5 ? "down" : "same";
-                      return (
-                        <div key={comp.name} className={`flex items-center gap-3 p-2.5 rounded-lg ${comp.isYou ? "bg-blue-50" : "hover:bg-neutral-50"}`}>
-                          <span className="text-sm text-neutral-400 w-4">{i + 1}</span>
-                          <div 
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-                            style={{ backgroundColor: chartColors[i] || "#888" }}
-                          >
-                            {comp.name[0]}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-sm truncate ${comp.isYou ? "font-semibold" : ""}`}>{comp.name}</span>
-                              {comp.isYou && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">You</span>}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {trend === "up" && <ArrowUpRight className="w-3.5 h-3.5 text-green-500" />}
-                            {trend === "down" && <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />}
-                            {trend === "same" && <Minus className="w-3.5 h-3.5 text-neutral-400" />}
-                            <span className="text-sm font-medium text-neutral-700 w-14 text-right">{comp.visibility.toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
 
               {/* Bottom Row */}
               <div className="grid grid-cols-2 gap-6">
-                {/* Citation Share Bar */}
+                {/* All Competitors */}
                 <div className="bg-white rounded-xl border border-neutral-200 p-5">
-                  <h3 className="font-semibold text-neutral-900 mb-4">Citation Share by Brand</h3>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={competitorRankings.slice(0, 5)} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-                        <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
-                        <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Visibility"]} />
-                        <Bar 
-                          dataKey="visibility" 
-                          fill="#3B82F6"
-                          radius={[0, 4, 4, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-neutral-900">All Competitors</h3>
+                    <span className="text-xs text-neutral-500">{competitorRankings.length} brands</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
+                    {competitorRankings.map((comp, i) => (
+                      <div key={comp.name} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isYou ? "bg-blue-50" : "hover:bg-neutral-50"}`}>
+                        <span className="text-xs text-neutral-400 w-4">{i + 1}</span>
+                        {comp.favicon ? (
+                          <img 
+                            src={comp.favicon} 
+                            alt={comp.name}
+                            className="w-7 h-7 rounded-lg object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold ${comp.favicon ? 'hidden' : ''}`}
+                          style={{ backgroundColor: chartColors[i % chartColors.length] || "#888" }}
+                        >
+                          {comp.name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm truncate ${comp.isYou ? "font-semibold" : ""}`}>{comp.name}</span>
+                            {comp.isYou && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded font-medium">You</span>}
+                          </div>
+                        </div>
+                        <span className="text-sm font-medium text-neutral-700">{comp.visibility.toFixed(1)}%</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -706,25 +721,177 @@ export default function DashboardPage() {
 
           {/* Actions View */}
           {selectedView === "actions" && (
-            <div className="space-y-4">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-neutral-900">Recommended Actions</h2>
-                <p className="text-sm text-neutral-500">Data-driven suggestions to improve your AI visibility</p>
+            <div className="space-y-6">
+              {/* Header with Summary */}
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Action Center</h2>
+                {actionsSummary && (
+                  <p className="text-sm text-neutral-600 mt-2 leading-relaxed">
+                    {actionsSummary.strategySummary}
+                  </p>
+                )}
               </div>
 
-              {generateSuggestions.map((suggestion, i) => (
-                <div key={i} className="bg-white border border-neutral-200 rounded-xl p-5 flex items-start gap-4">
-                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Zap className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-neutral-900">{suggestion}</p>
-                  </div>
-                  <button className="px-4 py-2 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors">
-                    Take Action
-                  </button>
+              {/* Actions List */}
+              {actions.length === 0 ? (
+                <div className="bg-white border border-neutral-200 rounded-xl p-12 text-center">
+                  <Zap className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                  <p className="text-neutral-500">Run a simulation to get personalized action recommendations</p>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {/* High Priority */}
+                  {actions.filter(a => a.priority === 'high').length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-red-600 uppercase tracking-wider mb-3">Priority Actions</h3>
+                      {actions.filter(a => a.priority === 'high').map(action => (
+                        <div 
+                          key={action.id} 
+                          onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
+                          className="bg-red-50 hover:bg-red-100 rounded-xl p-5 mb-3 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-neutral-900 mb-2">{action.title}</h4>
+                              <p className="text-sm text-neutral-600 leading-relaxed">{action.description}</p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={action.completed || false}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleActionComplete(action.id);
+                              }}
+                              className="w-5 h-5 rounded border-neutral-300 text-neutral-900 focus:ring-2 focus:ring-neutral-900 cursor-pointer flex-shrink-0"
+                            />
+                          </div>
+
+                          {/* Expanded Details */}
+                          {expandedAction === action.id && (
+                            <div className="space-y-5 border-t border-red-200 pt-5 mt-4">
+                              {/* Evidence */}
+                              <div>
+                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Why this matters</p>
+                                <div className="bg-white/60 p-4 rounded-lg space-y-3 text-sm">
+                                  {action.evidence.competitorExamples && action.evidence.competitorExamples.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <Users className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <span className="text-neutral-600">Competitors doing this: </span>
+                                        <span className="font-medium text-neutral-900">{action.evidence.competitorExamples.join(', ')}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {action.evidence.sourceUrls && action.evidence.sourceUrls.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <ExternalLink className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <span className="text-neutral-600">Key sources: </span>
+                                        {action.evidence.sourceUrls.map((url, i) => (
+                                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline block">
+                                            {url}
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {action.evidence.queryExamples && action.evidence.queryExamples.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <MessageSquare className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <span className="text-neutral-600">Example queries: </span>
+                                        <div className="space-y-1 mt-1">
+                                          {action.evidence.queryExamples.slice(0, 3).map((q, i) => (
+                                            <div key={i} className="text-xs bg-white px-2 py-1 rounded border border-neutral-200">"{q}"</div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {(action.evidence.mentionCount || action.evidence.frequency) && (
+                                    <div className="flex items-start gap-2">
+                                      <BarChart3 className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <span className="text-neutral-600">Frequency: </span>
+                                        <span className="font-medium text-neutral-900">
+                                          {action.evidence.mentionCount || action.evidence.frequency} times in analysis
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Steps */}
+                              <div>
+                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Action Steps</p>
+                                <ol className="space-y-3">
+                                  {action.steps.map((step, i) => (
+                                    <li key={i} className="flex items-start gap-3 text-sm">
+                                      <span className="w-6 h-6 bg-neutral-900 text-white rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                                        {i + 1}
+                                      </span>
+                                      <span className="text-neutral-700 pt-0.5 leading-relaxed">{step}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Medium Priority */}
+                  {actions.filter(a => a.priority === 'medium').length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-3 mt-6">Additional Actions</h3>
+                      {actions.filter(a => a.priority === 'medium').map(action => (
+                        <div 
+                          key={action.id} 
+                          onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
+                          className="bg-amber-50 hover:bg-amber-100 rounded-xl p-5 mb-3 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-neutral-900 mb-2">{action.title}</h4>
+                              <p className="text-sm text-neutral-600 leading-relaxed">{action.description}</p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={action.completed || false}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleActionComplete(action.id);
+                              }}
+                              className="w-5 h-5 rounded border-neutral-300 text-neutral-900 focus:ring-2 focus:ring-neutral-900 cursor-pointer flex-shrink-0"
+                            />
+                          </div>
+
+                          {expandedAction === action.id && (
+                            <div className="space-y-5 border-t border-amber-200 pt-5 mt-4">
+                              <div>
+                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Action Steps</p>
+                                <ol className="space-y-3">
+                                  {action.steps.map((step, i) => (
+                                    <li key={i} className="flex items-start gap-3 text-sm">
+                                      <span className="w-6 h-6 bg-neutral-900 text-white rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                                        {i + 1}
+                                      </span>
+                                      <span className="text-neutral-700 pt-0.5 leading-relaxed">{step}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -870,31 +1037,97 @@ export default function DashboardPage() {
           {selectedView === "sources" && (
             <div className="space-y-4">
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-neutral-900">Citation Sources</h2>
-                <p className="text-sm text-neutral-500">Where AI gets its information</p>
+                <h2 className="text-lg font-semibold text-neutral-900">ChatGPT Sources</h2>
+                <p className="text-sm text-neutral-500">{simulationResults.length} actual AI responses analyzed</p>
               </div>
 
-              {topSources.map((source, i) => (
-                <div key={i} className="bg-white border border-neutral-200 rounded-xl p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-2xl font-bold text-neutral-300">#{i + 1}</div>
-                      <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center text-lg font-bold text-neutral-600">
-                        {source.icon}
+              {simulationResults.map((result, i) => (
+                <div key={i} className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+                  {/* Source Header */}
+                  <button
+                    onClick={() => setExpandedSource(expandedSource === i ? null : i)}
+                    className="w-full flex items-start gap-4 p-5 hover:bg-neutral-50 transition-colors text-left"
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      result.yourBrandMentioned ? "bg-green-100" : "bg-neutral-100"
+                    }`}>
+                      {result.yourBrandMentioned ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-neutral-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-neutral-900 mb-1">{result.query}</h3>
+                      <div className="flex items-center gap-3 text-sm text-neutral-500">
+                        <span className={`font-medium ${
+                          result.yourBrandMentioned ? "text-green-600" : "text-neutral-400"
+                        }`}>
+                          {result.yourBrandMentioned ? `Position #${result.yourBrandPosition}` : "Not mentioned"}
+                        </span>
+                        <span className="text-neutral-300">•</span>
+                        <span>{result.mentionedBrands?.length || 0} brands mentioned</span>
                       </div>
+                    </div>
+                    {expandedSource === i ? (
+                      <ChevronUp className="w-5 h-5 text-neutral-400 flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-neutral-400 flex-shrink-0" />
+                    )}
+                  </button>
+
+                  {/* Expanded Content */}
+                  {expandedSource === i && (
+                    <div className="px-5 pb-5 space-y-4 border-t border-neutral-100 pt-4">
+                      {/* ChatGPT Response */}
                       <div>
-                        <h3 className="font-semibold text-neutral-900">{source.name}</h3>
-                        <a href={`https://${source.domain}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                          {source.domain}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">ChatGPT Response</p>
+                        <p className="text-sm text-neutral-600 leading-relaxed bg-neutral-50 p-4 rounded-lg">{result.response}</p>
                       </div>
+
+                      {/* Mentioned Brands */}
+                      {result.mentionedBrands && result.mentionedBrands.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Mentioned Brands</p>
+                          <div className="flex flex-wrap gap-2">
+                            {result.mentionedBrands.map((brand: any, idx: number) => (
+                              <div
+                                key={idx}
+                                className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                                  brand.name.toLowerCase() === companyName.toLowerCase()
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-neutral-100 text-neutral-700"
+                                }`}
+                              >
+                                #{brand.position} {brand.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Source Links */}
+                      {result.sources && result.sources.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Sources</p>
+                          <div className="space-y-2">
+                            {result.sources.map((source: any, sidx: number) => (
+                              <a
+                                key={sidx}
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                              >
+                                <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                                <span className="truncate">{source.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-neutral-900">{source.citations}</div>
-                      <div className="text-sm text-neutral-500">citations</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>

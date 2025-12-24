@@ -23,6 +23,16 @@ export interface SimulationResult {
   }[];
   yourBrandMentioned: boolean;
   yourBrandPosition: number | null;
+  sources?: {
+    title: string;
+    url: string;
+  }[];
+  brandSourceMappings?: {
+    brand: string;
+    mentionedInSources: string[];
+    contentType: 'comparison' | 'review' | 'list' | 'tutorial' | 'general';
+    prominence: 'high' | 'medium' | 'low';
+  }[];
 }
 
 export interface VisibilityMetrics {
@@ -35,6 +45,25 @@ export interface VisibilityMetrics {
   closestCompetitor: string;
   closestCompetitorMentions: number;
   brandRanking: number;
+}
+
+export interface Action {
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  category: 'source_presence' | 'content_creation' | 'topic_coverage' | 'seo';
+  title: string;
+  description: string;
+  impact: string;
+  effort: 'low' | 'medium' | 'high';
+  steps: string[];
+  evidence: {
+    competitorExamples?: string[];
+    sourceUrls?: string[];
+    queryExamples?: string[];
+    mentionCount?: number;
+    frequency?: number;
+  };
+  completed?: boolean;
 }
 
 interface OnboardingState {
@@ -70,6 +99,17 @@ interface OnboardingState {
   metrics: VisibilityMetrics | null;
   
   // Actions
+  actions: Action[];
+  actionsSummary: {
+    totalActions: number;
+    highPriority: number;
+    mediumPriority: number;
+    lowPriority: number;
+    estimatedImpact: string;
+    strategySummary: string;
+  } | null;
+  
+  // Store Actions (methods)
   setStep: (step: number) => void;
   completeStep: (step: number) => void;
   setCompanyInfo: (name: string, url: string) => void;
@@ -87,6 +127,8 @@ interface OnboardingState {
   setIsSimulating: (val: boolean) => void;
   setSimulationProgress: (val: number) => void;
   setMetrics: (metrics: VisibilityMetrics) => void;
+  setActions: (actions: Action[], summary: any) => void;
+  toggleActionComplete: (actionId: string) => void;
   reset: () => void;
 }
 
@@ -108,6 +150,8 @@ const initialState = {
   isSimulating: false,
   simulationProgress: 0,
   metrics: null,
+  actions: [],
+  actionsSummary: null,
 };
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
@@ -162,6 +206,14 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   setSimulationProgress: (val) => set({ simulationProgress: val }),
   
   setMetrics: (metrics) => set({ metrics }),
+  
+  setActions: (actions, summary) => set({ actions, actionsSummary: summary }),
+  
+  toggleActionComplete: (actionId) => set((state) => ({
+    actions: state.actions.map(a => 
+      a.id === actionId ? { ...a, completed: !a.completed } : a
+    )
+  })),
   
   reset: () => set(initialState),
 }));

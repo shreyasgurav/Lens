@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/lib/store";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import TypingAnimation from "@/components/TypingAnimation";
 
 export default function StepAnalysis() {
@@ -25,6 +25,7 @@ export default function StepAnalysis() {
   const [progress, setProgress] = useState(0);
   const [currentQuery, setCurrentQuery] = useState("");
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [expandedSource, setExpandedSource] = useState<number | null>(null);
 
   const analysisMessages = [
     "Analyzing your positioning",
@@ -89,9 +90,24 @@ export default function StepAnalysis() {
         });
         
         const data = await response.json();
-        console.log('API response:', { success: data.success, resultsCount: data.results?.length, error: data.error });
+        console.log('API response:', { 
+          success: data.success, 
+          resultsCount: data.results?.length, 
+          error: data.error,
+          sampleResult: data.results?.[0] 
+        });
         
         if (data.success && data.results) {
+          // Log detailed info about first result
+          if (data.results.length > 0) {
+            const firstResult = data.results[0];
+            console.log('First result details:', {
+              query: firstResult.query,
+              yourBrandMentioned: firstResult.yourBrandMentioned,
+              mentionedBrandsCount: firstResult.mentionedBrands?.length,
+              brandNames: firstResult.mentionedBrands?.map((b: any) => b.name)
+            });
+          }
           allResults.push(...data.results);
           console.log(`Added ${data.results.length} results. Total: ${allResults.length}`);
         } else {
@@ -108,6 +124,29 @@ export default function StepAnalysis() {
 
     setSimulationResults(allResults);
     calculateMetrics(allResults);
+    
+    // Generate actions based on simulation results
+    try {
+      const actionsResponse = await fetch("/api/generate-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          yourBrand: companyName,
+          simulationResults: allResults,
+          topics: selectedTopics,
+          competitors: competitors,
+        }),
+      });
+      
+      const actionsData = await actionsResponse.json();
+      if (actionsData.success) {
+        useOnboardingStore.getState().setActions(actionsData.actions, actionsData.summary);
+        console.log('Generated actions:', actionsData.actions.length);
+      }
+    } catch (error) {
+      console.error("Failed to generate actions:", error);
+    }
+    
     setIsSimulating(false);
     completeStep(5);
   };
@@ -188,29 +227,100 @@ export default function StepAnalysis() {
           </div>
         </div>
 
-        {/* Sample Results */}
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-        {simulationResults.slice(0, 5).map((result, i) => (
-          <div key={i} className="flex items-start gap-3 p-3 border border-neutral-200 rounded-lg">
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-              result.yourBrandMentioned ? "bg-neutral-900 text-white" : "bg-neutral-200 text-neutral-500"
-            }`}>
-              {result.yourBrandMentioned ? <Check className="w-3 h-3" /> : <span className="text-xs">—</span>}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-neutral-900 truncate">{result.query}</p>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                {result.yourBrandMentioned ? `#${result.yourBrandPosition}` : "Not mentioned"}
-              </p>
-            </div>
+        {/* Simulations */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-neutral-500">Simulations</h3>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {simulationResults.map((result, i) => (
+              <div key={i} className="border-b border-neutral-200 pb-3">
+                {/* Source Header */}
+                <button
+                  onClick={() => setExpandedSource(expandedSource === i ? null : i)}
+                  className="w-full flex items-start gap-3 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-neutral-900">{result.query}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <p className="text-xs text-neutral-400">
+                        {result.yourBrandMentioned ? `Position #${result.yourBrandPosition}` : "Not mentioned"}
+                      </p>
+                      <span className="text-xs text-neutral-300">•</span>
+                      <p className="text-xs text-neutral-400">
+                        {result.mentionedBrands.length} brand{result.mentionedBrands.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  {expandedSource === i ? (
+                    <ChevronUp className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-0.5" />
+                  )}
+                </button>
+
+                {/* Expanded Content */}
+                {expandedSource === i && (
+                  <div className="space-y-3 mt-3">
+                    {/* ChatGPT Response */}
+                    <div className="pt-3">
+                      <p className="text-xs font-medium text-neutral-700 mb-2">ChatGPT Response:</p>
+                      <p className="text-xs text-neutral-600 leading-relaxed">{result.response}</p>
+                    </div>
+
+                    {/* Mentioned Brands */}
+                    {result.mentionedBrands.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-neutral-700 mb-2">Mentioned Brands:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {result.mentionedBrands.map((brand: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className={`px-2.5 py-1 rounded-full text-xs ${
+                                brand.name.toLowerCase() === companyName.toLowerCase()
+                                  ? "bg-neutral-900 text-white"
+                                  : "bg-neutral-100 text-neutral-700"
+                              }`}
+                            >
+                              #{brand.position} {brand.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Source Links */}
+                    {result.sources && result.sources.length > 0 && (
+                      <div className="pt-2 border-t border-neutral-100">
+                        <p className="text-xs font-medium text-neutral-500 mb-2">Sources</p>
+                        <div className="space-y-2">
+                          {result.sources.map((source: any, sidx: number) => (
+                            <a
+                              key={sidx}
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start gap-2 text-xs text-neutral-600 hover:text-blue-600 transition-colors group"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-neutral-400 group-hover:text-blue-600" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium group-hover:underline">{source.title}</p>
+                                <p className="text-neutral-400 truncate">{source.url}</p>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex justify-center">
           <button
             onClick={() => router.push("/dashboard")}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-medium bg-neutral-900 text-white hover:bg-neutral-800 transition-all"
+            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium bg-neutral-900 text-white hover:bg-neutral-800 transition-all"
           >
             View Dashboard
           </button>

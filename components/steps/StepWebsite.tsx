@@ -19,7 +19,7 @@ export default function StepWebsite() {
   const isValid = name.trim().length > 0 && url.trim().length > 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div className="space-y-6">
         <div>
           <input
@@ -28,7 +28,7 @@ export default function StepWebsite() {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && isValid && handleContinue()}
             placeholder="Company Name"
-            className="w-full px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+            className="w-full px-0 py-2 sm:py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-sm sm:text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
             autoFocus
           />
         </div>
@@ -40,7 +40,7 @@ export default function StepWebsite() {
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && isValid && handleContinue()}
             placeholder="Website URL"
-            className="w-full px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+            className="w-full px-0 py-2 sm:py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-sm sm:text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
           />
         </div>
       </div>
