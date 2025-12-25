@@ -10,7 +10,7 @@ import StepAnalysis from "@/components/steps/StepAnalysis";
 const steps = [
   { id: 1, label: "Website" },
   { id: 2, label: "Description" },
-  { id: 3, label: "Topics" },
+  { id: 3, label: "Prompts" },
   { id: 4, label: "Competitors" },
   { id: 5, label: "Analysis" },
 ];

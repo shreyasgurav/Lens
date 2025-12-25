@@ -493,7 +493,6 @@ export default function DashboardPage() {
             {[
               { id: "dashboard", icon: BarChart3, label: "Dashboard" },
               { id: "prompts", icon: MessageSquare, label: "Prompts" },
-              { id: "topics", icon: FileText, label: "Topics" },
               { id: "competitors", icon: Users, label: "Competitors" },
               { id: "sources", icon: ExternalLink, label: "Sources" },
             ].map(item => (
@@ -586,21 +585,15 @@ export default function DashboardPage() {
 
         {/* Bottom */}
         <div className="p-3 border-t border-neutral-100">
-          <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 rounded-lg">
-            <Settings className="w-4 h-4" />
-            Settings
-          </button>
           <button 
             onClick={() => router.push("/onboarding")}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 rounded-lg"
           >
-            <LogOut className="w-4 h-4" />
-            New Analysis
+            <RefreshCw className="w-4 h-4" />
+            Exit
           </button>
         </div>
       </aside>
-
-      {/* Main Content */}
       <main className="flex-1 ml-56">
         {/* Header Spacer - keeps same spacing without visible header */}
         <div className="h-16"></div>
@@ -611,7 +604,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4">
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-5 bg-white shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Visibility</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -620,7 +613,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">Based on {metrics.totalPrompts} prompts</p>
                 </div>
 
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-5 bg-white shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Citation Share</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -629,7 +622,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{metrics.mentionCount} of {competitorRankings.reduce((s, c) => s + c.mentions, 0)} citations</p>
                 </div>
 
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-5 bg-white shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Ranking</span>
                   </div>
@@ -637,7 +630,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{yourRanking === 1 ? "Market Leader" : `of ${competitorRankings.length} brands`}</p>
                 </div>
 
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-5 bg-white shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Top Competitor</span>
                   </div>
@@ -667,7 +660,7 @@ export default function DashboardPage() {
               {/* Charts Row */}
               <div className="grid grid-cols-1 gap-6">
                 {/* Line Chart */}
-                <div className="rounded-xl p-8" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-8 bg-white shadow-sm">
                   <div className="flex items-center gap-2 mb-8">
                     <h2 className="text-lg font-semibold text-neutral-900 m-0">Competitor Visibility</h2>
                     <button className="text-neutral-400 hover:text-neutral-600 transition-colors">
@@ -782,7 +775,7 @@ export default function DashboardPage() {
               {/* Bottom Row */}
               <div className="grid grid-cols-2 gap-6">
                 {/* All Competitors */}
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-5 bg-white shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">All Competitors</h3>
                     <span className="text-xs text-neutral-500">{competitorRankings.length} brands</span>
@@ -827,7 +820,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Top Sources */}
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
+                <div className="rounded-xl p-5 bg-white shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">Top Sources</h3>
                     <button className="text-xs text-blue-600 hover:text-blue-700">View All</button>
@@ -983,7 +976,7 @@ export default function DashboardPage() {
                   competitors.map((comp) => (
                     <div
                       key={comp.id}
-                      className="flex items-center justify-between px-4 py-3 border border-neutral-200 rounded-lg hover:border-neutral-300 transition-colors"
+                      className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-center gap-3">
                         {comp.favicon ? (
@@ -1051,7 +1044,7 @@ export default function DashboardPage() {
                         <div 
                           key={action.id} 
                           onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
-                          className="bg-red-50 hover:bg-red-100 rounded-xl p-5 mb-3 cursor-pointer transition-colors"
+                          className="border-b border-neutral-200 pb-4 mb-3 cursor-pointer"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -1071,7 +1064,7 @@ export default function DashboardPage() {
 
                           {/* Expanded Details */}
                           {expandedAction === action.id && (
-                            <div className="space-y-5 border-t border-red-200 pt-5 mt-4">
+                            <div className="space-y-5 border-t border-neutral-200 pt-5 mt-4">
                               {/* Evidence */}
                               <div>
                                 <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Why this matters</p>
@@ -1154,7 +1147,7 @@ export default function DashboardPage() {
                         <div 
                           key={action.id} 
                           onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
-                          className="bg-amber-50 hover:bg-amber-100 rounded-xl p-5 mb-3 cursor-pointer transition-colors"
+                          className="border-b border-neutral-200 pb-4 mb-3 cursor-pointer"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
@@ -1200,7 +1193,26 @@ export default function DashboardPage() {
 
           {/* Prompts View */}
           {selectedView === "prompts" && (
-            <div className="max-w-3xl mx-auto space-y-6">
+            <div className="max-w-3xl mx-auto space-y-8">
+              {/* Add Custom Prompt */}
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={newTopic}
+                  onChange={(e) => setNewTopic(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTopic()}
+                  placeholder="Add custom prompt"
+                  className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+                />
+                <button
+                  onClick={handleAddTopic}
+                  disabled={!newTopic.trim()}
+                  className="px-4 py-2 text-neutral-900 rounded-lg hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+
               {/* Simulations List */}
               <div className="space-y-3">
                 {simulationResults.map((result, i) => (
@@ -1296,122 +1308,32 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Topics View */}
-          {selectedView === "topics" && (
-            <div className="max-w-3xl mx-auto space-y-8">
-              {/* Add Custom Topic */}
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={newTopic}
-                  onChange={(e) => setNewTopic(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddTopic()}
-                  placeholder="Add custom topic"
-                  className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
-                />
-                <button
-                  onClick={handleAddTopic}
-                  disabled={!newTopic.trim()}
-                  className="px-4 py-2 text-neutral-900 rounded-lg hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Topics Pills */}
-              <div className="flex flex-wrap gap-2.5 justify-center">
-                {topics.slice(0, 10).map((topic) => (
-                  <button
-                    key={topic.id}
-                    onClick={() => toggleTopic(topic.id)}
-                    className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap ${
-                      topic.selected
-                        ? "bg-neutral-900 text-white"
-                        : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-                    }`}
-                  >
-                    {topic.name}
-                    {topic.id.startsWith('topic-custom-') && topic.selected && (
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveTopic(topic.id);
-                        }}
-                        className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {topics.length === 0 && (
-                <p className="text-center text-sm text-neutral-400">
-                  No topics yet. Add your first topic above.
-                </p>
-              )}
-
-              {topics.length > 10 && (
-                <p className="text-center text-xs text-neutral-400">
-                  Showing first 10 topics
-                </p>
-              )}
-            </div>
-          )}
-
           {/* Sources View */}
           {selectedView === "sources" && (
-            <div className="max-w-3xl mx-auto">
-              <div className="space-y-3">
+            <div className="max-w-4xl mx-auto">
+              <div className="space-y-2">
                 {topSources.length > 0 ? topSources.map((source, i) => (
                   <a
                     key={i}
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block border-b border-neutral-200 pb-4 hover:bg-neutral-50 transition-colors rounded-lg p-3 -m-3"
+                    className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <div className="flex items-start gap-3">
-                      <span className="text-sm text-neutral-400 mt-1">{i + 1}</span>
-                      <div className="relative flex-shrink-0">
-                        <img 
-                          src={`https://icons.duckduckgo.com/ip3/${source.domain}.ico`}
-                          alt={source.title}
-                          className="w-10 h-10 rounded-lg object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            if (target.src.includes('duckduckgo')) {
-                              target.src = `https://www.google.com/s2/favicons?domain=${source.domain}&sz=64`;
-                            } else {
-                              target.style.display = 'none';
-                              const fallback = target.nextElementSibling as HTMLElement;
-                              if (fallback) fallback.style.display = 'flex';
-                            }
-                          }}
-                        />
-                        <div 
-                          className="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center text-base font-semibold text-neutral-600"
-                          style={{ display: 'none' }}
-                        >
-                          {source.domain[0].toUpperCase()}
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <ExternalLink className="w-5 h-5 text-neutral-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-medium text-neutral-900 mb-1 group-hover:text-blue-600">
-                          {source.title}
-                        </h3>
-                        <p className="text-sm text-neutral-500 truncate mb-2">{source.domain}</p>
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
-                          <span>{source.count} citation{source.count !== 1 ? 's' : ''}</span>
-                        </div>
+                        <p className="text-sm font-medium text-neutral-900 truncate">{source.title}</p>
+                        <p className="text-xs text-neutral-400 truncate">{source.domain}</p>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-1" />
+                    </div>
+                    <div className="text-xs text-neutral-500 flex-shrink-0 ml-3">
+                      {source.count} citation{source.count !== 1 ? 's' : ''}
                     </div>
                   </a>
                 )) : (
                   <div className="text-center py-12">
-                    <ExternalLink className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                    <ExternalLink className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
                     <p className="text-neutral-500">No sources yet. Run simulations to see sources.</p>
                   </div>
                 )}

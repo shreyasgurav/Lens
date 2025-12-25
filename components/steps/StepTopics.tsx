@@ -79,7 +79,7 @@ export default function StepTopics() {
   };
 
   if (isGeneratingTopics) {
-    return <TypingAnimation text="Generating topics" />;
+    return <TypingAnimation text="Generating prompts" />;
   }
 
   return (
@@ -100,7 +100,7 @@ export default function StepTopics() {
             value={newTopic}
             onChange={(e) => setNewTopic(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddTopic()}
-            placeholder="Add custom topic"
+            placeholder="Add custom prompt"
             className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
           />
           <button
@@ -112,7 +112,7 @@ export default function StepTopics() {
           </button>
         </div>
 
-        {/* Topics Pills */}
+        {/* Prompts Pills */}
         <div className="flex flex-wrap gap-2.5 justify-center">
           {topics.map((topic) => (
             <button
