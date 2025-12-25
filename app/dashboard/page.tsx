@@ -490,12 +490,41 @@ export default function DashboardPage() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {/* Agent */}
+          <div className="mb-6">
+            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 mb-2">Agent</p>
+            <button
+              onClick={() => setSelectedView("agent")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors mb-0.5 ${
+                selectedView === "agent" 
+                  ? "text-neutral-900 font-medium" 
+                  : "text-neutral-600"
+              }`}
+              style={{
+                backgroundColor: selectedView === "agent" ? '#E5E5E5' : 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (selectedView !== "agent") {
+                  e.currentTarget.style.backgroundColor = '#ECECEC';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedView !== "agent") {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+            >
+              <MessageSquare className="w-4 h-4" />
+              Chat
+            </button>
+          </div>
+
           {/* Analytics */}
           <div className="mb-6">
             <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 mb-2">Analytics</p>
             {[
               { id: "dashboard", icon: BarChart3, label: "Dashboard" },
-              { id: "prompts", icon: MessageSquare, label: "Prompts" },
+              { id: "prompts", icon: FileText, label: "Prompts" },
               { id: "competitors", icon: Users, label: "Competitors" },
               { id: "sources", icon: ExternalLink, label: "Sources" },
             ].map(item => (
@@ -530,30 +559,6 @@ export default function DashboardPage() {
           {/* Action */}
           <div className="mb-6">
             <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 mb-2">Action</p>
-            <button
-              onClick={() => setSelectedView("agent")}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors mb-0.5 ${
-                selectedView === "agent" 
-                  ? "text-neutral-900 font-medium" 
-                  : "text-neutral-600"
-              }`}
-              style={{
-                backgroundColor: selectedView === "agent" ? '#E5E5E5' : 'transparent'
-              }}
-              onMouseEnter={(e) => {
-                if (selectedView !== "agent") {
-                  e.currentTarget.style.backgroundColor = '#ECECEC';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedView !== "agent") {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <Bot className="w-4 h-4" />
-              AI Agent
-            </button>
             <button
               onClick={() => setSelectedView("actions")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors ${
@@ -592,7 +597,7 @@ export default function DashboardPage() {
             onClick={() => router.push("/onboarding")}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 rounded-lg"
           >
-            <RefreshCw className="w-4 h-4" />
+            <LogOut className="w-4 h-4" />
             Exit
           </button>
         </div>
@@ -1208,7 +1213,7 @@ export default function DashboardPage() {
 
           {/* Prompts View */}
           {selectedView === "prompts" && (
-            <div className="max-w-3xl mx-auto space-y-8">
+            <div className="max-w-6xl mx-auto space-y-6">
               {/* Add Custom Prompt */}
               <div className="flex gap-2 items-center">
                 <input
@@ -1228,89 +1233,158 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* Simulations List */}
-              <div className="space-y-3">
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-4 px-4 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wider border-b border-neutral-200">
+                <div className="col-span-5">Prompt</div>
+                <div className="col-span-2 text-center">Visibility</div>
+                <div className="col-span-3 text-center">Top Performers</div>
+                <div className="col-span-2 text-center">Sources</div>
+              </div>
+
+              {/* Table Rows */}
+              <div className="space-y-1">
                 {simulationResults.map((result, i) => (
-                  <div key={i} className="border-b border-neutral-200 pb-4">
-                    {/* Prompt Header */}
-                    <button
-                      onClick={() => setExpandedSource(expandedSource === i ? null : i)}
-                      className="w-full flex items-start gap-3 text-left group py-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-base text-neutral-900 group-hover:text-neutral-700 transition-colors font-medium">{result.query}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <p className="text-sm text-neutral-500">
-                            {result.yourBrandMentioned ? `Position #${result.yourBrandPosition}` : "Not mentioned"}
-                          </p>
-                          <span className="text-sm text-neutral-300">•</span>
-                          <p className="text-sm text-neutral-500">
-                            {result.mentionedBrands.length} brand{result.mentionedBrands.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-                      {expandedSource === i ? (
-                        <ChevronUp className="w-5 h-5 text-neutral-400 flex-shrink-0 mt-1" />
+                  <div 
+                    key={i} 
+                    className="grid grid-cols-12 gap-4 px-4 py-4 items-center hover:bg-neutral-50 rounded-lg transition-colors"
+                  >
+                    {/* Prompt */}
+                    <div className="col-span-5">
+                      <p className="text-sm text-neutral-900">{result.query}</p>
+                    </div>
+
+                    {/* Visibility */}
+                    <div className="col-span-2 flex items-center justify-center gap-1">
+                      <span className={`text-sm font-medium ${result.yourBrandMentioned ? 'text-green-600' : 'text-neutral-400'}`}>
+                        {result.yourBrandMentioned ? '100%' : '0%'}
+                      </span>
+                      {result.yourBrandMentioned ? (
+                        <ArrowUpRight className="w-3.5 h-3.5 text-green-600" />
                       ) : (
-                        <ChevronDown className="w-5 h-5 text-neutral-400 flex-shrink-0 mt-1" />
+                        <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
                       )}
-                    </button>
+                    </div>
 
-                    {/* Expanded Content */}
-                    {expandedSource === i && (
-                      <div className="space-y-4 mt-4 pl-2">
-                        {/* ChatGPT Response */}
-                        <div className="pt-2">
-                          <p className="text-sm font-medium text-neutral-700 mb-2">ChatGPT Response:</p>
-                          <p className="text-sm text-neutral-600 leading-relaxed">{result.response}</p>
-                        </div>
-
-                        {/* Mentioned Brands */}
-                        {result.mentionedBrands.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium text-neutral-700 mb-2">Mentioned Brands:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {result.mentionedBrands.map((brand: any, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className={`px-3 py-1.5 rounded-full text-sm ${
-                                    brand.name.toLowerCase() === companyName.toLowerCase()
-                                      ? "bg-neutral-900 text-white"
-                                      : "bg-neutral-100 text-neutral-700"
-                                  }`}
+                    {/* Top Performers */}
+                    <div className="col-span-3 flex items-center justify-center">
+                      <div className="relative group">
+                        <div className="flex -space-x-2 cursor-pointer">
+                          {result.mentionedBrands.slice(0, 4).map((brand: any, idx: number) => {
+                            const competitor = competitors.find(c => c.name.toLowerCase() === brand.name.toLowerCase());
+                            const isYourBrand = brand.name.toLowerCase() === companyName.toLowerCase();
+                            return (
+                              <div key={idx} className="relative">
+                                {competitor?.favicon || isYourBrand ? (
+                                  <img 
+                                    src={isYourBrand && websiteUrl 
+                                      ? `https://icons.duckduckgo.com/ip3/${websiteUrl.replace(/^https?:\/\//, '').replace('www.', '').split('/')[0]}.ico`
+                                      : competitor?.favicon
+                                    }
+                                    alt={brand.name}
+                                    className="w-7 h-7 rounded-full border-2 border-white object-cover bg-neutral-100"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                      if (fallback) fallback.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <div 
+                                  className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-bold"
+                                  style={{ 
+                                    backgroundColor: chartColors[idx % chartColors.length] || "#888",
+                                    display: (competitor?.favicon || isYourBrand) ? 'none' : 'flex'
+                                  }}
                                 >
-                                  #{brand.position} {brand.name}
+                                  {brand.name[0]}
                                 </div>
-                              ))}
+                              </div>
+                            );
+                          })}
+                          {result.mentionedBrands.length > 4 && (
+                            <div className="w-7 h-7 rounded-full border-2 border-white bg-neutral-200 flex items-center justify-center text-xs font-medium text-neutral-600">
+                              +{result.mentionedBrands.length - 4}
+                            </div>
+                          )}
+                        </div>
+                        {/* All Performers Popup */}
+                        {result.mentionedBrands.length > 0 && (
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-white rounded-lg shadow-lg border border-neutral-200 p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-20">
+                            <p className="text-xs font-medium text-neutral-500 mb-2">Top Performers</p>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {result.mentionedBrands.map((brand: any, idx: number) => {
+                                const competitor = competitors.find(c => c.name.toLowerCase() === brand.name.toLowerCase());
+                                const isYourBrand = brand.name.toLowerCase() === companyName.toLowerCase();
+                                return (
+                                  <div key={idx} className="flex items-center gap-2">
+                                    <span className="text-xs text-neutral-400 w-4">#{brand.position}</span>
+                                    {competitor?.favicon || isYourBrand ? (
+                                      <img 
+                                        src={isYourBrand && websiteUrl 
+                                          ? `https://icons.duckduckgo.com/ip3/${websiteUrl.replace(/^https?:\/\//, '').replace('www.', '').split('/')[0]}.ico`
+                                          : competitor?.favicon
+                                        }
+                                        alt={brand.name}
+                                        className="w-5 h-5 rounded-full object-cover bg-neutral-100"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                          const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                          if (fallback) fallback.style.display = 'flex';
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div 
+                                      className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                      style={{ 
+                                        backgroundColor: chartColors[idx % chartColors.length] || "#888",
+                                        display: (competitor?.favicon || isYourBrand) ? 'none' : 'flex'
+                                      }}
+                                    >
+                                      {brand.name[0]}
+                                    </div>
+                                    <span className={`text-xs ${isYourBrand ? 'font-semibold text-neutral-900' : 'text-neutral-600'}`}>
+                                      {brand.name}
+                                      {isYourBrand && <span className="ml-1 text-[10px] text-blue-600">(You)</span>}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
+                      </div>
+                    </div>
 
-                        {/* Source Links */}
-                        {result.sources && result.sources.length > 0 && (
-                          <div className="pt-2 border-t border-neutral-100">
-                            <p className="text-sm font-medium text-neutral-700 mb-2">Sources</p>
-                            <div className="space-y-2">
+                    {/* Sources */}
+                    <div className="col-span-2 flex items-center justify-center">
+                      {result.sources && result.sources.length > 0 ? (
+                        <div className="relative group">
+                          <span className="text-sm text-neutral-600 cursor-pointer hover:text-neutral-900">
+                            {result.sources.length} source{result.sources.length !== 1 ? 's' : ''}
+                          </span>
+                          {/* Sources Popup */}
+                          <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-neutral-200 p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-20">
+                            <p className="text-xs font-medium text-neutral-500 mb-2">Sources</p>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
                               {result.sources.map((source: any, sidx: number) => (
                                 <a
                                   key={sidx}
                                   href={source.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-start gap-2 text-sm text-neutral-600 hover:text-blue-600 transition-colors group"
+                                  className="flex items-center gap-2 text-xs text-neutral-600 hover:text-blue-600"
                                 >
-                                  <ExternalLink className="w-4 h-4 flex-shrink-0 mt-0.5 text-neutral-400 group-hover:text-blue-600" />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium group-hover:underline">{source.title}</p>
-                                    <p className="text-neutral-400 text-xs truncate mt-0.5">{source.url}</p>
-                                  </div>
+                                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{source.title || source.url}</span>
                                 </a>
                               ))}
                             </div>
                           </div>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-neutral-400">—</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

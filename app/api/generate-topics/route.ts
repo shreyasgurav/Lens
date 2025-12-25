@@ -33,85 +33,81 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: "system",
-          content: `You are an expert at understanding how potential customers ask questions to AI assistants like ChatGPT, Claude, or Perplexity when looking for product recommendations.
+          content: `Generate prompts that users ask AI assistants to DISCOVER and GET RECOMMENDATIONS for products.
 
-Your job: Generate REALISTIC CUSTOMER PROMPTS - the actual questions/prompts people would ask an AI assistant when looking for products/services like this one.
+THE ONE RULE:
+Every prompt must make AI respond with a LIST of recommended products/brands.
 
-CRITICAL MINDSET:
-- These are conversational questions people ask AI assistants
-- Think like someone seeking recommendations or solutions
-- Adapt to the product type (SaaS, platform, service, marketplace, etc.)
-- Questions should feel natural and conversational
-- Mix of short and detailed prompts
-- Focus on problems, use cases, and recommendations
+User asks → AI responds with: "Here are some options: Product A, Product B, Product C..."
 
-PROMPT TYPES TO GENERATE:
+═══════════════════════════════════════
+VALID PROMPT TYPES (use these patterns)
+═══════════════════════════════════════
 
-1. **Recommendation Requests** (40%): "What's the best [product] for [use case]?", "Can you recommend a [tool] that [does X]?"
-   Examples:
-   - "What's the best video platform for content creators?"
-   - "Can you recommend a meeting tool that records and transcribes?"
-   - "What's a good e-commerce platform for small businesses?"
+1. RECOMMENDATION REQUESTS (40%)
+   "What's the best [product type] for [use case]?"
+   "Which [product type] would you recommend for [situation]?"
+   "Top [product type] for [specific need]?"
+   
+2. NEED/PROBLEM STATEMENTS (30%)
+   "I need a tool to [do something]"
+   "Looking for [product type] that can [capability]"
+   "I want to [achieve goal], what should I use?"
+   
+3. FEATURE-BASED DISCOVERY (20%)
+   "[Product type] with [specific feature]"
+   "[Product type] that integrates with [tool]"
+   "Free/affordable [product type] for [use case]"
+   
+4. ALTERNATIVE REQUESTS (10%)
+   "Alternatives to [FAMOUS well-known competitor only]"
+   "Something like [FAMOUS brand] but cheaper/better"
 
-2. **Problem-Solution** (30%): "I need [solution] for [problem]", "Looking for [tool] to help with [task]"
-   Examples:
-   - "I need a way to share videos with my team"
-   - "Looking for a tool to automate meeting notes"
-   - "I want to start selling online, what platform should I use?"
+═══════════════════════════════════════
+STRICT RULES
+═══════════════════════════════════════
 
-3. **Comparison/Alternative** (15%): "What are alternatives to [competitor]?", "[Product A] vs [Product B]"
-   Examples:
-   - "What are alternatives to YouTube for creators?"
-   - "Zoom vs other meeting platforms"
-
-4. **Feature-Specific** (15%): "[Product type] with [specific feature]", "Does [product] have [capability]?"
-   Examples:
-   - "Video platform with built-in monetization"
-   - "Meeting tool that integrates with Slack"
-
-CRITICAL RULES:
-- Generate exactly 10 prompts
-- Make them conversational and natural (how people actually talk to AI)
-- Vary length: some short (5-8 words), some detailed (10-15 words)
-- Adapt to product type - don't force "AI" if not relevant
-- Include question marks where appropriate
-- NO brand names (except in "alternative to X" or comparisons)
+- Generate EXACTLY 10 prompts
+- NEVER mention "${companyName}" - users don't know about it yet
+- NEVER mention any brand names EXCEPT in "alternatives to [famous brand]"
+- NO comparison questions like "X vs Y" or "How does X compare to Y"
+- NO questions about downsides/limitations
+- NO educational/tutorial questions
+- Every prompt = AI will list product recommendations
+- Sound like real humans (casual, conversational)
+- Mix short (5-8 words) and medium (10-15 words) prompts
 - Return ONLY a JSON array of strings
 
-✅ GOOD EXAMPLES (Video Platform):
-- "What's the best video platform for content creators?"
-- "I need a way to host and share videos for my business"
-- "Video platform with monetization features"
-- "What are alternatives to YouTube?"
-- "Looking for a video hosting solution for online courses"
+═══════════════════════════════════════
+❌ BAD - AI won't list products
+═══════════════════════════════════════
+- "Zoom vs Teams for meetings" (compares 2 specific products)
+- "What are downsides of AI meeting tools?" (lists downsides, not products)
+- "How does Notion compare to..." (asks about specific brand)
+- "Is Slack suitable for enterprise?" (asks about specific brand)
+- "What features make X stand out?" (asks about specific brand)
 
-✅ GOOD EXAMPLES (AI Meeting Tool):
-- "What's the best AI tool for meeting notes?"
-- "I need something to automatically transcribe my meetings"
-- "Can you recommend a meeting assistant that works with Zoom?"
-- "Looking for an AI note taker for remote teams"
-
-✅ GOOD EXAMPLES (E-commerce):
-- "What's the best platform to start an online store?"
-- "I want to sell products online, what should I use?"
-- "E-commerce platform for small businesses"
-- "What are alternatives to Shopify?"
-
-❌ BAD EXAMPLES:
-- "How to make videos" (too generic, not product-focused)
-- "YouTube tutorial" (not a recommendation request)
-- "Best AI video tool" (forcing AI where it doesn't fit)`,
+═══════════════════════════════════════
+✅ GOOD - AI will list products
+═══════════════════════════════════════
+- "What's the best meeting assistant for remote teams?"
+- "I need a tool to automatically take meeting notes"
+- "Recommend a video conferencing tool for small teams"
+- "Meeting software with transcription features"
+- "Affordable project management tool for startups"
+- "Alternatives to Zoom for video calls"
+- "Looking for a CRM that integrates with Gmail"`,
         },
         {
           role: "user",
           content: `Company: ${companyName}
 Description: ${description}${categoryContext}${featureContext}${keywordContext}
 
-Based on this SPECIFIC product, generate 10 realistic customer prompts/questions that potential customers would ask an AI assistant when looking for this type of product:`,
+Generate 10 prompts that users would ask AI to DISCOVER products like this. Each prompt should make AI respond with a list of product recommendations (where ${companyName} could potentially appear).`,
         },
       ],
       max_tokens: 600,
-      temperature: 0.7,
+      temperature: 0.3,
     });
 
     const responseText = completion.choices[0]?.message?.content?.trim() || "[]";
