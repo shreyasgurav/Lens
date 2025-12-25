@@ -99,13 +99,22 @@ export default function DashboardPage() {
     });
 
     simulationResults.forEach(result => {
+      // Count your brand
       if (result.yourBrandMentioned) {
         mentionCounts.set(companyName, (mentionCounts.get(companyName) || 0) + 1);
       }
+      
+      // Count each competitor brand only ONCE per result (even if mentioned multiple times)
+      const uniqueBrandsInResult = new Set<string>();
       result.mentionedBrands?.forEach(brand => {
         if (mentionCounts.has(brand.name)) {
-          mentionCounts.set(brand.name, (mentionCounts.get(brand.name) || 0) + 1);
+          uniqueBrandsInResult.add(brand.name);
         }
+      });
+      
+      // Increment count for each unique brand
+      uniqueBrandsInResult.forEach(brandName => {
+        mentionCounts.set(brandName, (mentionCounts.get(brandName) || 0) + 1);
       });
     });
 

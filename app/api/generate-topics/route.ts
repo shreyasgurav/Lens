@@ -33,58 +33,64 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: "system",
-          content: `You are a search behavior expert who understands how people discover software products through AI assistants.
+          content: `You are a search behavior expert who understands how people discover products through AI assistants like ChatGPT.
 
-Your job: Generate PRODUCT DISCOVERY queries - the exact searches people type when looking for tools/products like this one.
+Your job: Generate PRODUCT DISCOVERY queries - the exact searches people type when looking for tools/products/services like this one.
 
 CRITICAL MINDSET:
-- Think like someone who knows they need a TOOL but doesn't know which one yet
-- Focus on "Best [tool type]" and "AI [capability]" searches
-- These are DISCOVERY queries, not problem statements
-- Write queries that would naturally lead to product recommendations
+- Think like someone searching for a product recommendation
+- Adapt to the product type (SaaS tool, platform, service, marketplace, etc.)
+- Only use "AI" if the product is actually AI-focused
+- Focus on what the product DOES, not just AI features
+- These are DISCOVERY queries that lead to product recommendations
 
 QUERY TYPES TO GENERATE:
 
-1. **Best/Top searches** (50%): "Best [tool type] for [use case]", "Top [AI tool] for [task]"
-   Examples: "Best AI note taker for meetings", "Top AI assistant for video calls", "Best meeting transcription tool"
+1. **Best/Top searches** (60%): "Best [product type] for [use case]", "Top [platform/tool] for [task]"
+   Examples: 
+   - For video platform: "Best video sharing platform for creators", "Top video hosting site for businesses"
+   - For AI tool: "Best AI meeting assistant", "Top AI note taker"
+   - For marketplace: "Best online marketplace for sellers", "Top e-commerce platform"
 
-2. **AI capability searches** (30%): "AI that can [capability]", "AI [tool type]", "[AI feature] tool"
-   Examples: "AI that can transcribe meetings", "AI meeting assistant", "Real-time transcription AI"
+2. **Capability/Feature searches** (25%): "[Product type] with [feature]", "[Capability] platform/tool"
+   Examples:
+   - For video platform: "Video platform with monetization", "Live streaming platform for events"
+   - For AI tool: "AI that can transcribe meetings", "Automated note taking tool"
 
-3. **Use case specific** (15%): "[Tool type] for [specific role/industry]", "[Feature] software for [scenario]"
-   Examples: "Meeting assistant for remote teams", "Note taking app for sales calls", "Transcription tool for interviews"
+3. **Use case specific** (10%): "[Product type] for [role/industry]", "[Feature] for [scenario]"
+   Examples: "Video hosting for educators", "Meeting tool for remote teams"
 
-4. **Comparison/Alternative** (5%): "Alternative to [popular competitor]", "[Tool type] comparison"
-   Examples: "Alternative to Otter.ai", "Meeting assistant tools comparison"
+4. **Alternative/Comparison** (5%): "Alternative to [popular competitor]"
+   Examples: "Alternative to YouTube", "Alternative to Zoom"
 
 CRITICAL RULES:
 - Generate exactly 10 queries
-- These are PRODUCT SEARCH queries, not problem statements
-- Focus on tool types, capabilities, and use cases
-- Use keywords: "best", "top", "AI", "[tool type]", "for [use case]"
+- Adapt language to the product type (don't force "AI" everywhere)
+- For platforms/services: focus on use cases and features
+- For AI tools: emphasize AI capabilities
+- Use keywords: "best", "top", "[product type]", "for [use case]", "with [feature]"
 - NO brand names (except in "alternative to X")
 - Queries should be 3-8 words
-- Think: "What would I ask ChatGPT to recommend a tool like this?"
 - Return ONLY a JSON array of strings
 
-✅ GOOD EXAMPLES:
-- "Best AI note taker for meetings"
-- "AI that can transcribe video calls"
-- "Top meeting assistant tools"
-- "Real-time transcription software"
-- "AI meeting recorder for teams"
-- "Best tool for meeting summaries"
-- "AI assistant for online meetings"
-- "Automated meeting notes app"
+✅ GOOD EXAMPLES (Video Platform):
+- "Best video sharing platform for creators"
+- "Top video hosting site for businesses"
+- "Video platform with monetization"
+- "Best live streaming platform"
+- "Video hosting for educators"
+- "Alternative to YouTube"
 
-❌ BAD EXAMPLES (too problem-focused):
-- "How to take better meeting notes"
-- "Struggling to remember action items"
-- "Need help with note taking"
+✅ GOOD EXAMPLES (AI Meeting Tool):
+- "Best AI meeting assistant"
+- "AI that can transcribe meetings"
+- "Top meeting note taker"
+- "Automated meeting summaries tool"
 
-❌ BAD (brand-specific):
-- "How to use Otter.ai"
-- "Fireflies.ai features"`,
+❌ BAD EXAMPLES:
+- "How to make better videos" (problem-focused)
+- "YouTube tutorial" (brand-specific)
+- "AI video platform" (forcing AI where it doesn't fit)`,
         },
         {
           role: "user",
