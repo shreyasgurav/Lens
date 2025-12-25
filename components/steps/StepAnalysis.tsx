@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/lib/store";
 import { ArrowLeft, Check, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
@@ -47,15 +47,15 @@ export default function StepAnalysis() {
 
   const selectedTopics = topics.filter((t) => t.selected);
 
-  // Use a ref to track if simulation has been initiated
-  const [hasInitiated, setHasInitiated] = useState(false);
+  // Use a ref to prevent duplicate runs (React StrictMode issue)
+  const simulationStartedRef = useRef(false);
 
   useEffect(() => {
-    if (simulationResults.length === 0 && !isSimulating && !hasInitiated) {
-      setHasInitiated(true);
+    if (simulationResults.length === 0 && !isSimulating && !simulationStartedRef.current) {
+      simulationStartedRef.current = true;
       runSimulation();
     }
-  }, [simulationResults.length, isSimulating, hasInitiated]);
+  }, []);
 
   const runSimulation = async () => {
     console.log('Starting parallel simulation with:', {

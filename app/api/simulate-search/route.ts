@@ -71,7 +71,7 @@ Examples:
         },
       ],
       max_tokens: 50,
-      temperature: 0.7,
+      temperature: 0.3,
     });
 
     const query = queryGeneration.choices[0]?.message?.content?.trim() || topic;

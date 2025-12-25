@@ -37,11 +37,19 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col lg:flex-row lg:justify-center">
-      {/* Progress Indicator - Horizontal on Mobile, Vertical on Desktop */}
-      
-      {/* Mobile: Horizontal Progress Bar at Top */}
+      {/* Mobile: Logo and Progress at Top */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-neutral-200 z-50">
-        <div className="px-4 py-3">
+        {/* Logo - Centered */}
+        <div className="flex justify-center pt-4 pb-2">
+          <img 
+            src="/Lens Logo.png" 
+            alt="Lens"
+            className="w-8 h-8 object-contain"
+          />
+        </div>
+        
+        {/* Progress Bar */}
+        <div className="px-6 pb-3">
           <div className="relative">
             {/* Background Line */}
             <div className="absolute top-1.5 left-0 right-0 h-px bg-neutral-200 rounded-full" />
@@ -90,6 +98,15 @@ export default function OnboardingPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Desktop: Logo - Centered horizontally */}
+      <div className="hidden lg:flex fixed top-8 left-0 right-0 justify-center z-50">
+        <img 
+          src="/Lens Logo.png" 
+          alt="Lens"
+          className="w-8 h-8 object-contain"
+        />
       </div>
 
       {/* Desktop: Vertical Progress Indicator */}
@@ -143,8 +160,8 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* Main Content - Responsive */}
-      <main className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-16 lg:py-12 w-full mt-20 lg:mt-0">
+      {/* Main Content - Responsive and Centered */}
+      <main className="flex items-center justify-center px-4 sm:px-6 lg:px-8 w-full min-h-screen pt-32 pb-8 lg:pt-0 lg:pb-0">
         <div className={`w-full transition-all ${currentStep === 2 ? 'max-w-xl' : currentStep === 3 ? 'max-w-2xl' : currentStep === 5 ? 'max-w-3xl' : 'max-w-md'}`}>
           {renderStep()}
         </div>

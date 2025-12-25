@@ -120,10 +120,18 @@ export default function DashboardPage() {
         let favicon = null;
         if (isYourBrand && websiteUrl) {
           try {
-            const url = new URL(websiteUrl);
+            // Add protocol if missing
+            let urlString = websiteUrl;
+            if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
+              urlString = 'https://' + urlString;
+            }
+            const url = new URL(urlString);
+            const hostname = url.hostname.replace('www.', '');
             // Use DuckDuckGo for better reliability
-            favicon = `https://icons.duckduckgo.com/ip3/${url.hostname}.ico`;
+            favicon = `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+            console.log('Your brand favicon URL:', favicon);
           } catch (e) {
+            console.error('Error creating favicon URL for your brand:', e);
             favicon = null;
           }
         } else {
@@ -181,16 +189,38 @@ export default function DashboardPage() {
     return totalMentions > 0 ? (yourMentions / totalMentions) * 100 : 0;
   }, [competitorRankings, simulationResults]);
 
-  // Top sources
+  // Top sources - extract real sources from simulation results
   const topSources = useMemo(() => {
-    const total = simulationResults.length || 1;
-    return [
-      { name: "Wikipedia", domain: "wikipedia.org", citations: Math.floor(total * 0.35), icon: "W" },
-      { name: "Medium", domain: "medium.com", citations: Math.floor(total * 0.25), icon: "M" },
-      { name: "GitHub", domain: "github.com", citations: Math.floor(total * 0.20), icon: "G" },
-      { name: "Stack Overflow", domain: "stackoverflow.com", citations: Math.floor(total * 0.12), icon: "S" },
-      { name: "Reddit", domain: "reddit.com", citations: Math.floor(total * 0.08), icon: "R" },
-    ];
+    const sourceCounts = new Map<string, { title: string; url: string; domain: string; count: number }>();
+    
+    simulationResults.forEach(result => {
+      result.sources?.forEach((source: any) => {
+        if (source.url) {
+          try {
+            const url = new URL(source.url);
+            const domain = url.hostname.replace('www.', '');
+            const key = domain;
+            
+            if (sourceCounts.has(key)) {
+              sourceCounts.get(key)!.count++;
+            } else {
+              sourceCounts.set(key, {
+                title: source.title || domain,
+                url: source.url,
+                domain: domain,
+                count: 1
+              });
+            }
+          } catch (e) {
+            // Invalid URL, skip
+          }
+        }
+      });
+    });
+    
+    return Array.from(sourceCounts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
   }, [simulationResults]);
 
   // Topic coverage
@@ -289,7 +319,9 @@ export default function DashboardPage() {
         `Create authoritative content for "${t.topic}" - ${t.dominantCompetitor ? `${t.dominantCompetitor} dominates this space` : 'opportunity to lead'}`
       );
     } else if (lowerMessage.includes("source") || lowerMessage.includes("citation")) {
-      response = `AI assistants cite these sources most frequently:\n\n${topSources.map((s, i) => `${i+1}. ${s.name}: ${s.citations} citations`).join('\n')}\n\nYour priority actions:`;
+      response = topSources.length > 0 
+        ? `AI assistants cite these sources most frequently:\n\n${topSources.map((s, i) => `${i+1}. ${s.title}: ${s.count} citations`).join('\n')}\n\nYour priority actions:`
+        : `No sources data yet. Run simulations to see which sources AI assistants cite.\n\nYour priority actions:`;
       suggestions = [
         "Ensure your brand has accurate Wikipedia coverage",
         "Publish technical content on GitHub and Stack Overflow",
@@ -348,18 +380,25 @@ export default function DashboardPage() {
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-neutral-200 flex flex-col fixed h-full">
         {/* Logo */}
-        <div className="p-4 flex items-center gap-2.5 border-b border-neutral-100">
-          <div className="w-8 h-8 bg-neutral-900 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">L</span>
-          </div>
+        <div className="p-4 pl-6 flex items-center gap-2.5 border-b border-neutral-100">
+          <img 
+            src="/Lens Logo.png" 
+            alt="Lens"
+            className="w-8 h-8 object-contain"
+          />
           
           {websiteUrl && (
             <>
               <div className="w-px h-5 bg-neutral-200" />
               {(() => {
                 try {
-                  const url = new URL(websiteUrl);
-                  const hostname = url.hostname;
+                  // Add protocol if missing
+                  let urlString = websiteUrl;
+                  if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
+                    urlString = 'https://' + urlString;
+                  }
+                  const url = new URL(urlString);
+                  const hostname = url.hostname.replace('www.', '');
                   // Use DuckDuckGo favicon service - often more reliable
                   const favicon = `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
                   return (
@@ -389,6 +428,7 @@ export default function DashboardPage() {
                     </div>
                   );
                 } catch (e) {
+                  console.error('Error loading sidebar favicon:', e);
                   return (
                     <div className="w-6 h-6 bg-neutral-200 rounded flex items-center justify-center text-neutral-600 text-xs font-bold">
                       {companyName[0]}
@@ -409,6 +449,7 @@ export default function DashboardPage() {
               { id: "dashboard", icon: BarChart3, label: "Dashboard" },
               { id: "prompts", icon: MessageSquare, label: "Prompts" },
               { id: "topics", icon: FileText, label: "Topics" },
+              { id: "sources", icon: ExternalLink, label: "Sources" },
             ].map(item => (
               <button
                 key={item.id}
@@ -711,13 +752,13 @@ export default function DashboardPage() {
                     <button className="text-xs text-blue-600 hover:text-blue-700">View All</button>
                   </div>
                   <div className="space-y-3">
-                    {topSources.map((source, i) => (
+                    {topSources.length > 0 ? topSources.map((source, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <span className="text-xs text-neutral-400 w-4">{i + 1}</span>
                         <div className="relative">
                           <img 
                             src={`https://icons.duckduckgo.com/ip3/${source.domain}.ico`}
-                            alt={source.name}
+                            alt={source.title}
                             className="w-8 h-8 rounded-lg object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
@@ -734,19 +775,21 @@ export default function DashboardPage() {
                             className="w-8 h-8 bg-neutral-100 rounded-lg flex items-center justify-center text-sm font-semibold text-neutral-600"
                             style={{ display: 'none' }}
                           >
-                            {source.icon}
+                            {source.domain[0].toUpperCase()}
                           </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-neutral-900">{source.name}</div>
-                          <div className="text-xs text-neutral-400">{source.domain}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-neutral-900 truncate">{source.title}</div>
+                          <div className="text-xs text-neutral-400 truncate">{source.domain}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-semibold text-neutral-900">{source.citations}</div>
+                          <div className="text-sm font-semibold text-neutral-900">{source.count}</div>
                           <div className="text-xs text-neutral-400">citations</div>
                         </div>
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-sm text-neutral-400 text-center py-4">No sources yet</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1206,6 +1249,65 @@ export default function DashboardPage() {
                   Showing first 10 topics
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Sources View */}
+          {selectedView === "sources" && (
+            <div className="max-w-3xl mx-auto">
+              <div className="space-y-3">
+                {topSources.length > 0 ? topSources.map((source, i) => (
+                  <a
+                    key={i}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border-b border-neutral-200 pb-4 hover:bg-neutral-50 transition-colors rounded-lg p-3 -m-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-sm text-neutral-400 mt-1">{i + 1}</span>
+                      <div className="relative flex-shrink-0">
+                        <img 
+                          src={`https://icons.duckduckgo.com/ip3/${source.domain}.ico`}
+                          alt={source.title}
+                          className="w-10 h-10 rounded-lg object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (target.src.includes('duckduckgo')) {
+                              target.src = `https://www.google.com/s2/favicons?domain=${source.domain}&sz=64`;
+                            } else {
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }
+                          }}
+                        />
+                        <div 
+                          className="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center text-base font-semibold text-neutral-600"
+                          style={{ display: 'none' }}
+                        >
+                          {source.domain[0].toUpperCase()}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-medium text-neutral-900 mb-1 group-hover:text-blue-600">
+                          {source.title}
+                        </h3>
+                        <p className="text-sm text-neutral-500 truncate mb-2">{source.domain}</p>
+                        <div className="flex items-center gap-2 text-xs text-neutral-400">
+                          <span>{source.count} citation{source.count !== 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-1" />
+                    </div>
+                  </a>
+                )) : (
+                  <div className="text-center py-12">
+                    <ExternalLink className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                    <p className="text-neutral-500">No sources yet. Run simulations to see sources.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
