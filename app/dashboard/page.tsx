@@ -18,6 +18,8 @@ import {
   ChevronUp,
   Info,
   ExternalLink,
+  Plus,
+  X,
   AlertCircle,
   CheckCircle,
   ArrowUpRight,
@@ -32,14 +34,15 @@ import {
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
-  BarChart,
-  Bar,
+  Cell,
 } from "recharts";
 
 interface ChatMessage {
@@ -50,10 +53,11 @@ interface ChatMessage {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { companyName, websiteUrl, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete } = useOnboardingStore();
+  const { companyName, websiteUrl, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete, setTopics, toggleTopic } = useOnboardingStore();
   const [selectedView, setSelectedView] = useState<string>("dashboard");
   const [visibleCompetitors, setVisibleCompetitors] = useState<Set<string>>(new Set());
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
+  const [newTopic, setNewTopic] = useState("");
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
   
   // Agent Chat State
@@ -141,40 +145,33 @@ export default function DashboardPage() {
   const chartData = useMemo(() => {
     if (!simulationResults.length) return [];
     
-    // Group results by topic to create data points
-    const topicGroups = new Map<string, Map<string, number>>();
+    // For now, create mock date-based data points
+    // In the future, this will use actual simulation run dates
+    const today = new Date();
+    const dataPoints = [];
     
-    simulationResults.forEach((result, idx) => {
-      const topicName = topics.find(t => 
-        result.query.toLowerCase().includes(t.name.toLowerCase().split(' ')[0])
-      )?.name || `Query ${idx + 1}`;
+    // Generate 4 data points over the last week
+    for (let i = 3; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - (i * 2)); // Every 2 days
       
-      if (!topicGroups.has(topicName)) {
-        topicGroups.set(topicName, new Map());
-      }
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const point: Record<string, string | number> = { date: dateStr };
       
-      const topicData = topicGroups.get(topicName)!;
-      
-      // Track which brands were mentioned
-      if (result.yourBrandMentioned) {
-        topicData.set(companyName, (topicData.get(companyName) || 0) + 1);
-      }
-      
-      result.mentionedBrands?.forEach(brand => {
-        topicData.set(brand.name, (topicData.get(brand.name) || 0) + 1);
-      });
-    });
-    
-    // Convert to chart format
-    return Array.from(topicGroups.entries()).map(([topic, brandCounts]) => {
-      const data: Record<string, string | number> = { date: topic };
+      // For each competitor, calculate visibility with slight variation over time
       competitorRankings.forEach(comp => {
-        const count = brandCounts.get(comp.name) || 0;
-        data[comp.name] = count > 0 ? 100 : 0; // Show 100% if mentioned, 0% if not
+        // Add some random variation (±10%) to show trend
+        const baseVisibility = comp.visibility;
+        const variation = (Math.random() - 0.5) * 20; // -10% to +10%
+        const value = Math.max(0, Math.min(100, baseVisibility + variation));
+        point[comp.name] = Math.round(value * 10) / 10; // Round to 1 decimal
       });
-      return data;
-    });
-  }, [competitorRankings, simulationResults, topics, companyName]);
+      
+      dataPoints.push(point);
+    }
+    
+    return dataPoints;
+  }, [competitorRankings]);
 
   // Citation share
   const citationShare = useMemo(() => {
@@ -330,6 +327,22 @@ export default function DashboardPage() {
   const topCompetitor = competitorRankings.find(c => !c.isYou);
   const yourRanking = competitorRankings.findIndex(c => c.isYou) + 1;
 
+  // Topic management functions
+  const handleAddTopic = () => {
+    if (!newTopic.trim()) return;
+    const newTopicObj = {
+      id: `topic-custom-${Date.now()}`,
+      name: newTopic.trim(),
+      selected: true,
+    };
+    setTopics([...topics, newTopicObj]);
+    setNewTopic("");
+  };
+
+  const handleRemoveTopic = (id: string) => {
+    setTopics(topics.filter(t => t.id !== id));
+  };
+
   return (
     <div className="min-h-screen bg-neutral-50 flex">
       {/* Sidebar */}
@@ -396,7 +409,6 @@ export default function DashboardPage() {
               { id: "dashboard", icon: BarChart3, label: "Dashboard" },
               { id: "prompts", icon: MessageSquare, label: "Prompts" },
               { id: "topics", icon: FileText, label: "Topics" },
-              { id: "sources", icon: ExternalLink, label: "Sources" },
             ].map(item => (
               <button
                 key={item.id}
@@ -533,60 +545,111 @@ export default function DashboardPage() {
               {/* Charts Row */}
               <div className="grid grid-cols-1 gap-6">
                 {/* Line Chart */}
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="font-semibold text-neutral-900">Competitor Visibility by Topic</h3>
-                      <p className="text-xs text-neutral-500">Which brands appear in each topic area</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {competitorRankings.slice(0, 5).map((comp, i) => (
-                        <button
-                          key={comp.name}
-                          onClick={() => {
-                            const newSet = new Set(visibleCompetitors);
-                            if (newSet.has(comp.name)) {
-                              newSet.delete(comp.name);
-                            } else {
-                              newSet.add(comp.name);
-                            }
-                            setVisibleCompetitors(newSet);
-                          }}
-                          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
-                            visibleCompetitors.has(comp.name) 
-                              ? "bg-neutral-100" 
-                              : "bg-neutral-50 opacity-50"
-                          }`}
-                        >
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartColors[i] }} />
-                          <span>{comp.name}</span>
-                          {comp.isYou && <span className="text-neutral-400">(You)</span>}
-                        </button>
-                      ))}
-                    </div>
+                <div className="bg-white rounded-xl border border-neutral-200 p-8">
+                  <div className="flex items-center gap-2 mb-8">
+                    <h2 className="text-lg font-semibold text-neutral-900 m-0">Competitor Visibility</h2>
+                    <button className="text-neutral-400 hover:text-neutral-600 transition-colors">
+                      <Info size={20} />
+                    </button>
                   </div>
-                  <div className="h-64">
+                  
+                  <div className="w-full h-[400px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#999" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="#999" domain={[0, 100]} />
-                        <Tooltip 
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e5e5" }}
-                          formatter={(value) => [`${value}%`, ""]}
+                      <LineChart
+                        data={chartData}
+                        margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+                      >
+                        <defs>
+                          <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#dbeafe" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#dbeafe" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        
+                        <CartesianGrid
+                          strokeDasharray="0"
+                          stroke="#F3F4F6"
+                          vertical={false}
                         />
+                        
+                        <XAxis
+                          dataKey="date"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: '#9CA3AF', fontSize: 14 }}
+                          dy={10}
+                        />
+                        
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: '#9CA3AF', fontSize: 14 }}
+                          ticks={[0, 25, 50, 75, 100]}
+                          domain={[0, 100]}
+                          tickFormatter={(value) => `${value}%`}
+                          dx={-10}
+                        />
+                        
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4 min-w-[240px]">
+                                  <div className="mb-3 text-gray-900 font-semibold text-sm">
+                                    Visibility • {label}
+                                  </div>
+                                  <div className="space-y-2">
+                                    {payload.map((entry: any, index: number) => {
+                                      const comp = competitorRankings.find(c => c.name === entry.name);
+                                      return (
+                                        <div key={index} className="flex items-center gap-2">
+                                          <div
+                                            className="w-1 h-4 rounded"
+                                            style={{ backgroundColor: entry.color }}
+                                          />
+                                          <span className="text-gray-700 text-sm flex items-center gap-1.5">
+                                            {comp?.favicon && (
+                                              <img 
+                                                src={comp.favicon} 
+                                                alt={entry.name}
+                                                className="w-4 h-4 rounded"
+                                              />
+                                            )}
+                                            <span>
+                                              {entry.name} {comp?.isYou && '(You)'}: {entry.value}%
+                                            </span>
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                          cursor={{ stroke: '#E5E7EB', strokeWidth: 1 }}
+                        />
+
                         {competitorRankings.slice(0, 5).map((comp, i) => (
-                          visibleCompetitors.has(comp.name) && (
-                            <Line
-                              key={comp.name}
-                              type="monotone"
-                              dataKey={comp.name}
-                              stroke={chartColors[i]}
-                              strokeWidth={comp.isYou ? 3 : 2}
-                              dot={false}
-                              activeDot={{ r: 4 }}
-                            />
-                          )
+                          <Line
+                            key={comp.name}
+                            type="monotone"
+                            dataKey={comp.name}
+                            stroke={chartColors[i]}
+                            strokeWidth={comp.isYou ? 3 : 2.5}
+                            dot={{
+                              fill: chartColors[i],
+                              strokeWidth: 2,
+                              r: 5,
+                              stroke: 'white',
+                            }}
+                            activeDot={{
+                              r: 6,
+                              strokeWidth: 2,
+                              stroke: 'white',
+                            }}
+                          />
                         ))}
                       </LineChart>
                     </ResponsiveContainer>
@@ -606,22 +669,28 @@ export default function DashboardPage() {
                     {competitorRankings.map((comp, i) => (
                       <div key={comp.name} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isYou ? "bg-blue-50" : "hover:bg-neutral-50"}`}>
                         <span className="text-xs text-neutral-400 w-4">{i + 1}</span>
-                        {comp.favicon ? (
-                          <img 
-                            src={comp.favicon} 
-                            alt={comp.name}
-                            className="w-7 h-7 rounded-lg object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        <div className="relative">
+                          {comp.favicon ? (
+                            <img 
+                              src={comp.favicon} 
+                              alt={comp.name}
+                              className="w-7 h-7 rounded-lg object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
+                            style={{ 
+                              backgroundColor: chartColors[i % chartColors.length] || "#888",
+                              display: comp.favicon ? 'none' : 'flex'
                             }}
-                          />
-                        ) : null}
-                        <div 
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold ${comp.favicon ? 'hidden' : ''}`}
-                          style={{ backgroundColor: chartColors[i % chartColors.length] || "#888" }}
-                        >
-                          {comp.name[0]}
+                          >
+                            {comp.name[0]}
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
@@ -645,8 +714,28 @@ export default function DashboardPage() {
                     {topSources.map((source, i) => (
                       <div key={i} className="flex items-center gap-3">
                         <span className="text-xs text-neutral-400 w-4">{i + 1}</span>
-                        <div className="w-8 h-8 bg-neutral-100 rounded-lg flex items-center justify-center text-sm font-semibold text-neutral-600">
-                          {source.icon}
+                        <div className="relative">
+                          <img 
+                            src={`https://icons.duckduckgo.com/ip3/${source.domain}.ico`}
+                            alt={source.name}
+                            className="w-8 h-8 rounded-lg object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (target.src.includes('duckduckgo')) {
+                                target.src = `https://www.google.com/s2/favicons?domain=${source.domain}&sz=64`;
+                              } else {
+                                target.style.display = 'none';
+                                const fallback = target.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }
+                            }}
+                          />
+                          <div 
+                            className="w-8 h-8 bg-neutral-100 rounded-lg flex items-center justify-center text-sm font-semibold text-neutral-600"
+                            style={{ display: 'none' }}
+                          >
+                            {source.icon}
+                          </div>
                         </div>
                         <div className="flex-1">
                           <div className="text-sm font-medium text-neutral-900">{source.name}</div>
@@ -960,100 +1049,163 @@ export default function DashboardPage() {
 
           {/* Prompts View */}
           {selectedView === "prompts" && (
-            <div className="space-y-4">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-neutral-900">AI Responses</h2>
-                <p className="text-sm text-neutral-500">{simulationResults.length} simulated prompts</p>
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Simulations List */}
+              <div className="space-y-3">
+                {simulationResults.map((result, i) => (
+                  <div key={i} className="border-b border-neutral-200 pb-4">
+                    {/* Prompt Header */}
+                    <button
+                      onClick={() => setExpandedSource(expandedSource === i ? null : i)}
+                      className="w-full flex items-start gap-3 text-left group py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base text-neutral-900 group-hover:text-neutral-700 transition-colors font-medium">{result.query}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <p className="text-sm text-neutral-500">
+                            {result.yourBrandMentioned ? `Position #${result.yourBrandPosition}` : "Not mentioned"}
+                          </p>
+                          <span className="text-sm text-neutral-300">•</span>
+                          <p className="text-sm text-neutral-500">
+                            {result.mentionedBrands.length} brand{result.mentionedBrands.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {expandedSource === i ? (
+                        <ChevronUp className="w-5 h-5 text-neutral-400 flex-shrink-0 mt-1" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-neutral-400 flex-shrink-0 mt-1" />
+                      )}
+                    </button>
+
+                    {/* Expanded Content */}
+                    {expandedSource === i && (
+                      <div className="space-y-4 mt-4 pl-2">
+                        {/* ChatGPT Response */}
+                        <div className="pt-2">
+                          <p className="text-sm font-medium text-neutral-700 mb-2">ChatGPT Response:</p>
+                          <p className="text-sm text-neutral-600 leading-relaxed">{result.response}</p>
+                        </div>
+
+                        {/* Mentioned Brands */}
+                        {result.mentionedBrands.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-neutral-700 mb-2">Mentioned Brands:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {result.mentionedBrands.map((brand: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className={`px-3 py-1.5 rounded-full text-sm ${
+                                    brand.name.toLowerCase() === companyName.toLowerCase()
+                                      ? "bg-neutral-900 text-white"
+                                      : "bg-neutral-100 text-neutral-700"
+                                  }`}
+                                >
+                                  #{brand.position} {brand.name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Source Links */}
+                        {result.sources && result.sources.length > 0 && (
+                          <div className="pt-2 border-t border-neutral-100">
+                            <p className="text-sm font-medium text-neutral-700 mb-2">Sources</p>
+                            <div className="space-y-2">
+                              {result.sources.map((source: any, sidx: number) => (
+                                <a
+                                  key={sidx}
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-start gap-2 text-sm text-neutral-600 hover:text-blue-600 transition-colors group"
+                                >
+                                  <ExternalLink className="w-4 h-4 flex-shrink-0 mt-0.5 text-neutral-400 group-hover:text-blue-600" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium group-hover:underline">{source.title}</p>
+                                    <p className="text-neutral-400 text-xs truncate mt-0.5">{source.url}</p>
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              {simulationResults.map((result, i) => (
-                <div key={i} className="bg-white border border-neutral-200 rounded-xl p-5">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      result.yourBrandMentioned ? "bg-green-100" : "bg-neutral-100"
-                    }`}>
-                      {result.yourBrandMentioned ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <AlertCircle className="w-5 h-5 text-neutral-400" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-medium text-neutral-900 truncate">{result.query}</h3>
-                        <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                          result.yourBrandMentioned 
-                            ? "bg-green-100 text-green-700" 
-                            : "bg-neutral-100 text-neutral-600"
-                        }`}>
-                          {result.yourBrandMentioned ? `#${result.yourBrandPosition} Mentioned` : "Not Mentioned"}
-                        </span>
-                      </div>
-                      <p className="text-sm text-neutral-600 line-clamp-2 mb-3">{result.response}</p>
-                      {result.mentionedBrands?.length > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs text-neutral-500">Brands:</span>
-                          {result.mentionedBrands.map((brand, j) => (
-                            <span 
-                              key={j} 
-                              className={`px-2 py-1 rounded text-xs ${
-                                brand.name.toLowerCase() === companyName.toLowerCase()
-                                  ? "bg-blue-100 text-blue-700 font-medium"
-                                  : "bg-neutral-100 text-neutral-600"
-                              }`}
-                            >
-                              {brand.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {simulationResults.length === 0 && (
+                <p className="text-center text-sm text-neutral-400 py-8">
+                  No simulations yet. Complete the onboarding to generate prompts.
+                </p>
+              )}
             </div>
           )}
 
           {/* Topics View */}
           {selectedView === "topics" && (
-            <div className="space-y-4">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-neutral-900">Topic Coverage</h2>
-                <p className="text-sm text-neutral-500">Where you appear vs where you don't</p>
+            <div className="max-w-3xl mx-auto space-y-8">
+              {/* Add Custom Topic */}
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={newTopic}
+                  onChange={(e) => setNewTopic(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTopic()}
+                  placeholder="Add custom topic"
+                  className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+                />
+                <button
+                  onClick={handleAddTopic}
+                  disabled={!newTopic.trim()}
+                  className="px-4 py-2 text-neutral-900 rounded-lg hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
               </div>
 
-              {topicCoverage.map((topic, i) => (
-                <div key={i} className="bg-white border border-neutral-200 rounded-xl p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-medium text-neutral-900 mb-1">{topic.topic}</h3>
-                      <div className="flex items-center gap-4 text-sm text-neutral-500">
-                        <span className="flex items-center gap-1">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          {topic.appeared} appeared
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <AlertCircle className="w-4 h-4 text-red-500" />
-                          {topic.missed} missed
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-neutral-900">{topic.coverage.toFixed(0)}%</div>
-                      <div className="text-xs text-neutral-500">coverage</div>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500" style={{ width: `${topic.coverage}%` }} />
-                  </div>
-                  {topic.dominantCompetitor && (
-                    <div className="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
-                      <TrendingUp className="w-4 h-4" />
-                      <span><strong>{topic.dominantCompetitor}</strong> dominates when you're absent</span>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {/* Topics Pills */}
+              <div className="flex flex-wrap gap-2.5 justify-center">
+                {topics.slice(0, 10).map((topic) => (
+                  <button
+                    key={topic.id}
+                    onClick={() => toggleTopic(topic.id)}
+                    className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap ${
+                      topic.selected
+                        ? "bg-neutral-900 text-white"
+                        : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                    }`}
+                  >
+                    {topic.name}
+                    {topic.id.startsWith('topic-custom-') && topic.selected && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveTopic(topic.id);
+                        }}
+                        className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {topics.length === 0 && (
+                <p className="text-center text-sm text-neutral-400">
+                  No topics yet. Add your first topic above.
+                </p>
+              )}
+
+              {topics.length > 10 && (
+                <p className="text-center text-xs text-neutral-400">
+                  Showing first 10 topics
+                </p>
+              )}
             </div>
           )}
 
@@ -1096,105 +1248,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Sources View */}
-          {selectedView === "sources" && (
-            <div className="space-y-4">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-neutral-900">ChatGPT Sources</h2>
-                <p className="text-sm text-neutral-500">{simulationResults.length} actual AI responses analyzed</p>
-              </div>
-
-              {simulationResults.map((result, i) => (
-                <div key={i} className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-                  {/* Source Header */}
-                  <button
-                    onClick={() => setExpandedSource(expandedSource === i ? null : i)}
-                    className="w-full flex items-start gap-4 p-5 hover:bg-neutral-50 transition-colors text-left"
-                  >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      result.yourBrandMentioned ? "bg-green-100" : "bg-neutral-100"
-                    }`}>
-                      {result.yourBrandMentioned ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <AlertCircle className="w-5 h-5 text-neutral-400" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-neutral-900 mb-1">{result.query}</h3>
-                      <div className="flex items-center gap-3 text-sm text-neutral-500">
-                        <span className={`font-medium ${
-                          result.yourBrandMentioned ? "text-green-600" : "text-neutral-400"
-                        }`}>
-                          {result.yourBrandMentioned ? `Position #${result.yourBrandPosition}` : "Not mentioned"}
-                        </span>
-                        <span className="text-neutral-300">•</span>
-                        <span>{result.mentionedBrands?.length || 0} brands mentioned</span>
-                      </div>
-                    </div>
-                    {expandedSource === i ? (
-                      <ChevronUp className="w-5 h-5 text-neutral-400 flex-shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-neutral-400 flex-shrink-0" />
-                    )}
-                  </button>
-
-                  {/* Expanded Content */}
-                  {expandedSource === i && (
-                    <div className="px-5 pb-5 space-y-4 border-t border-neutral-100 pt-4">
-                      {/* ChatGPT Response */}
-                      <div>
-                        <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">ChatGPT Response</p>
-                        <p className="text-sm text-neutral-600 leading-relaxed bg-neutral-50 p-4 rounded-lg">{result.response}</p>
-                      </div>
-
-                      {/* Mentioned Brands */}
-                      {result.mentionedBrands && result.mentionedBrands.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Mentioned Brands</p>
-                          <div className="flex flex-wrap gap-2">
-                            {result.mentionedBrands.map((brand: any, idx: number) => (
-                              <div
-                                key={idx}
-                                className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                                  brand.name.toLowerCase() === companyName.toLowerCase()
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-neutral-100 text-neutral-700"
-                                }`}
-                              >
-                                #{brand.position} {brand.name}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Source Links */}
-                      {result.sources && result.sources.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide mb-2">Sources</p>
-                          <div className="space-y-2">
-                            {result.sources.map((source: any, sidx: number) => (
-                              <a
-                                key={sidx}
-                                href={source.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
-                              >
-                                <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                                <span className="truncate">{source.title}</span>
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </main>
     </div>
