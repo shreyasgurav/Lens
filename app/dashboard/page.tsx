@@ -16,6 +16,7 @@ import {
   LogOut,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Info,
   ExternalLink,
   Plus,
@@ -107,9 +108,11 @@ export default function DashboardPage() {
       }
       
       // Count each competitor brand only ONCE per result (even if mentioned multiple times)
+      // Exclude your brand since it's already counted above
       const uniqueBrandsInResult = new Set<string>();
       result.mentionedBrands?.forEach(brand => {
-        if (mentionCounts.has(brand.name)) {
+        // Skip your brand to avoid double counting
+        if (mentionCounts.has(brand.name) && brand.name.toLowerCase() !== companyName.toLowerCase()) {
           uniqueBrandsInResult.add(brand.name);
         }
       });
@@ -604,7 +607,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4">
-                <div className="rounded-xl p-5 bg-white shadow-sm">
+                <div className="rounded-xl p-5 bg-white">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Visibility</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -613,7 +616,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">Based on {metrics.totalPrompts} prompts</p>
                 </div>
 
-                <div className="rounded-xl p-5 bg-white shadow-sm">
+                <div className="rounded-xl p-5 bg-white">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Citation Share</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -622,7 +625,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{metrics.mentionCount} of {competitorRankings.reduce((s, c) => s + c.mentions, 0)} citations</p>
                 </div>
 
-                <div className="rounded-xl p-5 bg-white shadow-sm">
+                <div className="rounded-xl p-5 bg-white">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Ranking</span>
                   </div>
@@ -630,7 +633,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{yourRanking === 1 ? "Market Leader" : `of ${competitorRankings.length} brands`}</p>
                 </div>
 
-                <div className="rounded-xl p-5 bg-white shadow-sm">
+                <div className="rounded-xl p-5 bg-white">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Top Competitor</span>
                   </div>
@@ -660,7 +663,7 @@ export default function DashboardPage() {
               {/* Charts Row */}
               <div className="grid grid-cols-1 gap-6">
                 {/* Line Chart */}
-                <div className="rounded-xl p-8 bg-white shadow-sm">
+                <div className="rounded-xl p-8 bg-white">
                   <div className="flex items-center gap-2 mb-8">
                     <h2 className="text-lg font-semibold text-neutral-900 m-0">Competitor Visibility</h2>
                     <button className="text-neutral-400 hover:text-neutral-600 transition-colors">
@@ -775,10 +778,16 @@ export default function DashboardPage() {
               {/* Bottom Row */}
               <div className="grid grid-cols-2 gap-6">
                 {/* All Competitors */}
-                <div className="rounded-xl p-5 bg-white shadow-sm">
+                <div className="rounded-xl p-5 bg-white">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">All Competitors</h3>
-                    <span className="text-xs text-neutral-500">{competitorRankings.length} brands</span>
+                    <button 
+                      onClick={() => setSelectedView("competitors")}
+                      className="flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
+                    >
+                      View All
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                   <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
                     {competitorRankings.map((comp, i) => (
@@ -820,10 +829,16 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Top Sources */}
-                <div className="rounded-xl p-5 bg-white shadow-sm">
+                <div className="rounded-xl p-5 bg-white">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">Top Sources</h3>
-                    <button className="text-xs text-blue-600 hover:text-blue-700">View All</button>
+                    <button 
+                      onClick={() => setSelectedView("sources")}
+                      className="flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
+                    >
+                      View All
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                   <div className="space-y-3">
                     {topSources.length > 0 ? topSources.map((source, i) => (
@@ -976,7 +991,7 @@ export default function DashboardPage() {
                   competitors.map((comp) => (
                     <div
                       key={comp.id}
-                      className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow"
+                      className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl"
                     >
                       <div className="flex items-center gap-3">
                         {comp.favicon ? (
@@ -1318,7 +1333,7 @@ export default function DashboardPage() {
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow"
+                    className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <ExternalLink className="w-5 h-5 text-neutral-400 flex-shrink-0" />
