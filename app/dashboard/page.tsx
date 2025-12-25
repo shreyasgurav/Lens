@@ -26,6 +26,7 @@ import {
   ArrowDownRight,
   Minus,
   Send,
+  ArrowUp,
   Bot,
   User,
   Sparkles,
@@ -53,11 +54,12 @@ interface ChatMessage {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { companyName, websiteUrl, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete, setTopics, toggleTopic } = useOnboardingStore();
+  const { companyName, websiteUrl, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete, setTopics, toggleTopic, addCompetitor, removeCompetitor } = useOnboardingStore();
   const [selectedView, setSelectedView] = useState<string>("dashboard");
   const [visibleCompetitors, setVisibleCompetitors] = useState<Set<string>>(new Set());
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
   const [newTopic, setNewTopic] = useState("");
+  const [newCompetitor, setNewCompetitor] = useState("");
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
   
   // Agent Chat State
@@ -384,16 +386,50 @@ export default function DashboardPage() {
     setTopics(topics.filter(t => t.id !== id));
   };
 
+  // Competitor management functions
+  const handleAddCompetitor = () => {
+    if (!newCompetitor.trim()) return;
+    const input = newCompetitor.trim();
+    
+    // Extract domain and name from URL or plain text
+    let domain = '';
+    let competitorName = '';
+    
+    try {
+      // Try to parse as URL
+      let urlToParse = input;
+      if (!input.startsWith('http://') && !input.startsWith('https://')) {
+        urlToParse = 'https://' + input;
+      }
+      const url = new URL(urlToParse);
+      domain = url.hostname.replace('www.', '');
+      // Extract company name from domain (e.g., cluely.com -> Cluely)
+      competitorName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
+    } catch {
+      // If not a valid URL, treat as company name
+      competitorName = input;
+      domain = input.toLowerCase().replace(/\s+/g, '') + '.com';
+    }
+    
+    addCompetitor({
+      id: `comp-${Date.now()}`,
+      name: competitorName,
+      website: domain,
+      favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
+    });
+    setNewCompetitor("");
+  };
+
   return (
     <div className="min-h-screen bg-neutral-50 flex">
       {/* Sidebar */}
-      <aside className="w-56 bg-white border-r border-neutral-200 flex flex-col fixed h-full">
+      <aside className="w-56 flex flex-col fixed h-full" style={{ backgroundColor: '#f3f2ee' }}>
         {/* Logo */}
         <div className="p-4 pl-6 flex items-center gap-2.5 border-b border-neutral-100">
           <img 
             src="/Lens Logo.png" 
             alt="Lens"
-            className="w-8 h-8 object-contain"
+            className="w-6 h-6 object-contain"
           />
           
           {websiteUrl && (
@@ -458,6 +494,7 @@ export default function DashboardPage() {
               { id: "dashboard", icon: BarChart3, label: "Dashboard" },
               { id: "prompts", icon: MessageSquare, label: "Prompts" },
               { id: "topics", icon: FileText, label: "Topics" },
+              { id: "competitors", icon: Users, label: "Competitors" },
               { id: "sources", icon: ExternalLink, label: "Sources" },
             ].map(item => (
               <button
@@ -465,9 +502,22 @@ export default function DashboardPage() {
                 onClick={() => setSelectedView(item.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors mb-0.5 ${
                   selectedView === item.id 
-                    ? "bg-neutral-100 text-neutral-900 font-medium" 
-                    : "text-neutral-600 hover:bg-neutral-50"
+                    ? "text-neutral-900 font-medium" 
+                    : "text-neutral-600"
                 }`}
+                style={{
+                  backgroundColor: selectedView === item.id ? '#E5E5E5' : 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedView !== item.id) {
+                    e.currentTarget.style.backgroundColor = '#ECECEC';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedView !== item.id) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
               >
                 <item.icon className="w-4 h-4" />
                 {item.label}
@@ -482,9 +532,22 @@ export default function DashboardPage() {
               onClick={() => setSelectedView("agent")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors mb-0.5 ${
                 selectedView === "agent" 
-                  ? "bg-blue-50 text-blue-700 font-medium" 
-                  : "text-neutral-600 hover:bg-neutral-50"
+                  ? "text-neutral-900 font-medium" 
+                  : "text-neutral-600"
               }`}
+              style={{
+                backgroundColor: selectedView === "agent" ? '#E5E5E5' : 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (selectedView !== "agent") {
+                  e.currentTarget.style.backgroundColor = '#ECECEC';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedView !== "agent") {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
             >
               <Bot className="w-4 h-4" />
               AI Agent
@@ -493,9 +556,22 @@ export default function DashboardPage() {
               onClick={() => setSelectedView("actions")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors ${
                 selectedView === "actions" 
-                  ? "bg-neutral-100 text-neutral-900 font-medium" 
-                  : "text-neutral-600 hover:bg-neutral-50"
+                  ? "text-neutral-900 font-medium" 
+                  : "text-neutral-600"
               }`}
+              style={{
+                backgroundColor: selectedView === "actions" ? '#E5E5E5' : 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (selectedView !== "actions") {
+                  e.currentTarget.style.backgroundColor = '#ECECEC';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedView !== "actions") {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
             >
               <Zap className="w-4 h-4" />
               Action Center
@@ -526,12 +602,8 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="flex-1 ml-56">
-        {/* Header */}
-        <header className="bg-white border-b border-neutral-200 px-6 py-4 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold text-neutral-900">{companyName}</h1>
-          </div>
-        </header>
+        {/* Header Spacer - keeps same spacing without visible header */}
+        <div className="h-16"></div>
 
         <div className="p-6">
           {/* Dashboard View */}
@@ -539,7 +611,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Visibility</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -548,7 +620,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">Based on {metrics.totalPrompts} prompts</p>
                 </div>
 
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Citation Share</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -557,7 +629,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{metrics.mentionCount} of {competitorRankings.reduce((s, c) => s + c.mentions, 0)} citations</p>
                 </div>
 
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Ranking</span>
                   </div>
@@ -565,7 +637,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{yourRanking === 1 ? "Market Leader" : `of ${competitorRankings.length} brands`}</p>
                 </div>
 
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Top Competitor</span>
                   </div>
@@ -595,7 +667,7 @@ export default function DashboardPage() {
               {/* Charts Row */}
               <div className="grid grid-cols-1 gap-6">
                 {/* Line Chart */}
-                <div className="bg-white rounded-xl border border-neutral-200 p-8">
+                <div className="rounded-xl p-8" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center gap-2 mb-8">
                     <h2 className="text-lg font-semibold text-neutral-900 m-0">Competitor Visibility</h2>
                     <button className="text-neutral-400 hover:text-neutral-600 transition-colors">
@@ -710,7 +782,7 @@ export default function DashboardPage() {
               {/* Bottom Row */}
               <div className="grid grid-cols-2 gap-6">
                 {/* All Competitors */}
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">All Competitors</h3>
                     <span className="text-xs text-neutral-500">{competitorRankings.length} brands</span>
@@ -755,7 +827,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Top Sources */}
-                <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#f3f2ee' }}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">Top Sources</h3>
                     <button className="text-xs text-blue-600 hover:text-blue-700">View All</button>
@@ -807,118 +879,145 @@ export default function DashboardPage() {
 
           {/* Agent Chat View */}
           {selectedView === "agent" && (
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden h-[calc(100vh-180px)] flex flex-col">
-                {/* Chat Header */}
-                <div className="px-5 py-4 border-b border-neutral-100 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-blue-600" />
+            <div className="max-w-3xl mx-auto h-[calc(100vh-120px)] flex flex-col">
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {chatMessages.length === 0 && (
+                  <div className="text-center py-20">
+                    <h3 className="text-2xl font-semibold text-neutral-900 mb-2">How can I help you today?</h3>
+                    <p className="text-sm text-neutral-500">Ask me anything about improving your AI visibility</p>
                   </div>
-                  <div>
-                    <h2 className="font-semibold text-neutral-900">AI Visibility Agent</h2>
-                    <p className="text-xs text-neutral-500">Ask me how to improve your AI search presence</p>
-                  </div>
-                </div>
+                )}
 
-                {/* Chat Messages */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                  {chatMessages.length === 0 && (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Sparkles className="w-8 h-8 text-blue-500" />
-                      </div>
-                      <h3 className="font-semibold text-neutral-900 mb-2">How can I help you today?</h3>
-                      <p className="text-sm text-neutral-500 mb-6">Ask me anything about improving your AI visibility</p>
-                      <div className="grid grid-cols-2 gap-2 max-w-md mx-auto">
-                        {[
-                          "How can I improve my visibility?",
-                          "What are my competitors doing?",
-                          "Which topics should I focus on?",
-                          "What sources should I target?"
-                        ].map((q, i) => (
-                          <button
-                            key={i}
-                            onClick={() => handleAgentChat(q)}
-                            className="p-3 text-left text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
-                      {msg.role === "assistant" && (
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                          <Bot className="w-4 h-4 text-blue-600" />
-                        </div>
-                      )}
-                      <div className={`max-w-[80%] ${msg.role === "user" ? "order-first" : ""}`}>
-                        <div className={`rounded-xl px-4 py-3 ${
-                          msg.role === "user" 
-                            ? "bg-neutral-900 text-white" 
-                            : "bg-neutral-100 text-neutral-900"
-                        }`}>
-                          <p className="text-sm whitespace-pre-line">{msg.content}</p>
-                        </div>
-                        {msg.suggestions && msg.suggestions.length > 0 && (
-                          <div className="mt-2 space-y-1.5">
-                            {msg.suggestions.map((s, j) => (
-                              <div key={j} className="flex items-start gap-2 p-2.5 bg-blue-50 rounded-lg text-sm">
-                                <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                                <span className="text-neutral-700">{s}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {msg.role === "user" && (
-                        <div className="w-8 h-8 bg-neutral-200 rounded-lg flex-shrink-0 flex items-center justify-center">
-                          <User className="w-4 h-4 text-neutral-600" />
+                {chatMessages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-5 py-3 ${
+                      msg.role === "user" 
+                        ? "bg-neutral-900 text-white" 
+                        : "text-neutral-900"
+                    }`} style={msg.role === "assistant" ? { backgroundColor: '#f3f2ee' } : {}}>
+                      <p className="text-[15px] leading-relaxed whitespace-pre-line">{msg.content}</p>
+                      {msg.suggestions && msg.suggestions.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {msg.suggestions.map((s, j) => (
+                            <div key={j} className="flex items-start gap-2 p-2.5 bg-white bg-opacity-50 rounded-lg text-sm">
+                              <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                              <span className="text-neutral-700">{s}</span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
-                  ))}
+                  </div>
+                ))}
 
-                  {isAgentThinking && (
-                    <div className="flex gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex-shrink-0 flex items-center justify-center">
-                        <Bot className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div className="bg-neutral-100 rounded-xl px-4 py-3">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                        </div>
+                {isAgentThinking && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl px-5 py-3" style={{ backgroundColor: '#f3f2ee' }}>
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                       </div>
                     </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
 
-                {/* Chat Input */}
-                <div className="p-4 border-t border-neutral-100">
-                  <div className="flex gap-3">
+              {/* Chat Input - ChatGPT Style */}
+              <div className="px-4 pb-6">
+                <div className="max-w-3xl mx-auto">
+                  <div className="relative flex items-center rounded-3xl shadow-sm" style={{ backgroundColor: '#f3f2ee' }}>
                     <input
                       type="text"
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAgentChat(chatInput)}
-                      placeholder="Ask about improving your AI visibility..."
-                      className="flex-1 px-4 py-2.5 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleAgentChat(chatInput)}
+                      placeholder="Ask anything"
+                      className="flex-1 px-5 py-3.5 bg-transparent text-[15px] focus:outline-none placeholder:text-neutral-500"
                     />
                     <button
                       onClick={() => handleAgentChat(chatInput)}
                       disabled={!chatInput.trim() || isAgentThinking}
-                      className="px-4 py-2.5 bg-neutral-900 text-white rounded-xl hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="mr-2 p-2 rounded-full bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
-                      <Send className="w-4 h-4" />
+                      <ArrowUp className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Competitors View */}
+          {selectedView === "competitors" && (
+            <div className="max-w-4xl mx-auto space-y-8">
+              {/* Add Competitor - Underline Style */}
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={newCompetitor}
+                  onChange={(e) => setNewCompetitor(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddCompetitor()}
+                  placeholder="Add competitor"
+                  className="flex-1 px-0 py-2.5 border-0 border-b-2 border-neutral-200 text-neutral-900 text-base placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors bg-transparent"
+                />
+                <button
+                  onClick={handleAddCompetitor}
+                  disabled={!newCompetitor.trim()}
+                  className="px-4 py-2 text-neutral-900 rounded-lg hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Competitors List */}
+              <div className="space-y-2">
+                {competitors.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
+                    <p className="text-neutral-500">No competitors added yet</p>
+                  </div>
+                ) : (
+                  competitors.map((comp) => (
+                    <div
+                      key={comp.id}
+                      className="flex items-center justify-between px-4 py-3 border border-neutral-200 rounded-lg hover:border-neutral-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {comp.favicon ? (
+                          <img 
+                            src={comp.favicon} 
+                            alt={comp.name} 
+                            className="w-6 h-6 rounded"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div className="w-6 h-6 rounded bg-neutral-200 flex items-center justify-center" style={{ display: comp.favicon ? 'none' : 'flex' }}>
+                          <span className="text-xs font-medium text-neutral-500">{comp.name[0]}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-neutral-900">{comp.name}</p>
+                          {comp.website && (
+                            <p className="text-xs text-neutral-400">{comp.website}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeCompetitor(comp.id)}
+                        className="p-1.5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -1317,45 +1416,6 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Competitors View */}
-          {selectedView === "competitors" && (
-            <div className="space-y-4">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-neutral-900">Competitor Analysis</h2>
-                <p className="text-sm text-neutral-500">{competitorRankings.length} brands tracked</p>
-              </div>
-
-              {competitorRankings.map((comp, i) => (
-                <div key={i} className={`border rounded-xl p-5 ${
-                  comp.isYou ? "bg-blue-50 border-blue-200" : "bg-white border-neutral-200"
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-2xl font-bold text-neutral-300">#{i + 1}</div>
-                      <div 
-                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
-                        style={{ backgroundColor: chartColors[i] || "#888" }}
-                      >
-                        {comp.name[0]}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-neutral-900">{comp.name}</h3>
-                          {comp.isYou && <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded">You</span>}
-                        </div>
-                        <p className="text-sm text-neutral-500">{comp.mentions} mentions</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-neutral-900">{comp.visibility.toFixed(1)}%</div>
-                      <div className="text-sm text-neutral-500">visibility</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
 
