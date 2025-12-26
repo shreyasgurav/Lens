@@ -47,21 +47,29 @@ export interface VisibilityMetrics {
   brandRanking: number;
 }
 
+export interface ContentSuggestion {
+  type: 'blog' | 'comparison' | 'use_case_page' | 'review_site';
+  title: string;
+  outline?: string[];
+  url?: string;
+  reason: string;
+}
+
 export interface Action {
   id: string;
   priority: 'high' | 'medium' | 'low';
-  category: 'source_presence' | 'content_creation' | 'topic_coverage' | 'seo';
+  category: 'category_identity' | 'use_case' | 'comparison' | 'authority' | 'decision_topics' | 'consistency';
   title: string;
   description: string;
-  impact: string;
-  effort: 'low' | 'medium' | 'high';
+  insight: string;
+  reason: string;
+  contentSuggestions?: ContentSuggestion[];
   steps: string[];
   evidence: {
-    competitorExamples?: string[];
-    sourceUrls?: string[];
-    queryExamples?: string[];
-    mentionCount?: number;
-    frequency?: number;
+    prompts?: string[];
+    competitors?: string[];
+    sources?: string[];
+    stat?: string;
   };
   completed?: boolean;
 }
