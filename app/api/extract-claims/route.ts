@@ -6,714 +6,395 @@ const openai = new OpenAI({
 });
 
 // ============================================================================
-// TYPES - Production-grade claim intelligence
+// TYPES - Production-grade causal recommendation engine
 // ============================================================================
 
 type ClaimType = 'differentiator' | 'table_stakes' | 'disqualifier';
 
-interface ExtractedClaim {
-  brand: string;
-  claim: string;
-  claimType: ClaimType;
+interface Observation {
+  prompt: string;
   promptIndex: number;
-  query: string;
-  sources: string[];
+  brand: string;
+  rank: number | null;
+  source: string | null;
+  sourceDomain: string | null;
+  contentType: 'list' | 'comparison' | 'review' | 'general';
 }
 
-// The MAGIC structure: Claim → Source → Prompt triangulation
-interface TriangulatedClaim {
+interface ClaimObservation {
   claim: string;
+  brand: string;
+  prompt: string;
+  promptIndex: number;
+  source: string | null;
+}
+
+interface CanonicalClaim {
+  id: string;
+  label: string;
+  variants: string[];
   claimType: ClaimType;
-  prompts: {
-    query: string;
-    index: number;
-    promptType: 'high_intent' | 'comparison' | 'discovery' | 'general';
-  }[];
-  sources: {
-    domain: string;
-    url: string;
-    citationCount: number;
-    sourceType: 'review_site' | 'publication' | 'comparison' | 'blog' | 'official' | 'other';
-  }[];
-  competitors: { brand: string; mentions: number }[];
-  yourBrandMentions: number;
+}
+
+interface TriangulatedClaim {
+  canonicalId: string;
+  label: string;
+  claimType: ClaimType;
+  promptSupport: number;
+  sourceSupport: number;
+  competitorSupport: number;
+  yourBrandSupport: number;
+  prompts: { query: string; index: number; promptType: 'high_intent' | 'comparison' | 'discovery' | 'general'; }[];
+  sources: { domain: string; url: string; citationCount: number; sourceType: string; }[];
+  competitors: { brand: string; mentions: number; avgRank: number; }[];
   totalMentions: number;
+}
+
+interface ConfidenceScore {
+  promptConfidence: number;
+  sourceConfidence: number;
+  competitivePressure: number;
+  final: number;
+  explanation: string;
 }
 
 interface ContentRecommendation {
   id: string;
   missingClaim: string;
   claimType: ClaimType;
-  // CAUSAL evidence - the magic sentence
-  causalEvidence: {
-    promptPercentage: number;
-    highIntentPrompts: number;
-    totalPromptsAffected: number;
-    reinforcingSources: number;
-    sourceTypes: string[];
-    topCompetitor: string;
-    topCompetitorMentions: number;
-  };
-  // Human-readable evidence
-  evidenceSummary: string;
+  confidence: ConfidenceScore;
+  causalEvidence: { promptsAffected: number; highIntentPrompts: number; sourceDomains: number; topCompetitor: string; topCompetitorMentions: number; };
   whyAISaysThis: string;
-  impactScore: number;
-  competitorMentions: { brand: string; count: number }[];
-  triangulation: {
-    prompts: string[];
-    sources: string[];
-  };
-  recommendedContent: {
-    type: 'blog' | 'page' | 'comparison' | 'case_study';
-    title: string;
-    outline: string[];
-    reason: string;
-    expectedImpact: string;
-  }[];
-  priority: 'critical' | 'high' | 'medium';
+  evidenceSummary: string;
+  triangulation: { prompts: string[]; sources: string[]; competitors: string[]; };
+  recommendedContent: { type: 'blog' | 'comparison' | 'use_case_page'; title: string; outline: string[]; reason: string; }[];
+  priority: 'critical' | 'high' | 'medium' | 'weak_signal';
 }
 
 interface OutreachRecommendation {
   id: string;
   type: 'review_site' | 'publication' | 'directory' | 'community';
   platform: string;
-  url?: string;
+  url: string;
   reason: string;
-  causalEvidence: {
-    citationCount: number;
-    promptsAffected: number;
-    competitorsPresent: number;
-    claimsReinforced: string[];
-  };
-  competitorPresence: string[];
+  causalEvidence: { simulationsAppeared: number; competitorsPresent: string[]; claimsReinforced: string[]; };
+  confidence: ConfidenceScore;
   priority: 'critical' | 'high' | 'medium';
   actions: string[];
-  authorityScore: number;
 }
 
-// ============================================================================
-// THRESHOLDS - Minimum requirements for actionability
-// ============================================================================
-
 const THRESHOLDS = {
-  MIN_CLAIM_FREQUENCY: 1,        // Claim must appear 1+ times (lowered for faster results)
-  MIN_SOURCE_CITATIONS: 1,       // Source must be cited 1+ times (lowered for faster results)
-  MAX_CONTENT_RECOMMENDATIONS: 5, // Limit to 5 key blog recommendations
-  MIN_PROMPT_IMPACT: 10,         // Must affect 10%+ of prompts for critical
-  HIGH_INTENT_MULTIPLIER: 2.5,   // High-intent prompts count 2.5x
-  AUTHORITY_SOURCE_BOOST: 1.5,   // Boost for authoritative sources
+  MIN_PROMPT_SUPPORT: 1,         // Lowered to 1 - with only 3 simulations, claims rarely appear 2+ times
+  MIN_SOURCE_SUPPORT: 1,         // Lowered to 1 - need at least 1 source to be grounded
+  MIN_COMPETITOR_SUPPORT: 1,
+  MIN_OUTREACH_SIMULATIONS: 1,
+  MIN_OUTREACH_COMPETITORS: 1,
+  MAX_CONTENT_RECOMMENDATIONS: 5,
+  MAX_OUTREACH_RECOMMENDATIONS: 5,
 };
-
-// ============================================================================
-// MAIN API
-// ============================================================================
 
 export async function POST(request: NextRequest) {
   try {
-    const { simulationResults, companyName, competitors, description } = await request.json();
-
+    const { simulationResults, companyName, competitors } = await request.json();
     if (!simulationResults || !companyName) {
-      return NextResponse.json({ success: false, error: "Missing required data" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Missing data" }, { status: 400 });
     }
 
     const yourBrand = companyName.toLowerCase();
-    const competitorNames = (competitors?.map((c: any) => c.name.toLowerCase()) || []) as string[];
     const totalPrompts = simulationResults.length;
+    console.log('=== EXTRACT CLAIMS V2 ===', { companyName, totalPrompts });
 
-    console.log('=== EXTRACT CLAIMS START ===');
-    console.log('Company:', companyName);
-    console.log('Your brand (normalized):', yourBrand);
-    console.log('Total prompts:', totalPrompts);
-    console.log('Competitors:', competitorNames);
-
-    // ========================================================================
-    // STEP 1: Extract claims WITH classification and source tracking
-    // ========================================================================
-    
-    const extractedClaims: ExtractedClaim[] = [];
-    
+    // STEP 1: Build observations
+    const observations: Observation[] = [];
     for (let i = 0; i < simulationResults.length; i++) {
       const result = simulationResults[i];
-      // Sources are in the simulation result - extract URLs
-      const sources = result.sources?.map((s: any) => s.url).filter(Boolean) || [];
+      const sources = result.sources || [];
+      const contentType = classifyContentType(result.query);
       
-      console.log(`Prompt ${i}: "${result.query}"`);
-      console.log(`  Sources found: ${sources.length}`);
-      console.log(`  Response length: ${result.response?.length || 0}`);
+      for (const brand of (result.mentionedBrands || [])) {
+        if (sources.length > 0) {
+          for (const source of sources) {
+            try {
+              const domain = new URL(source.url).hostname.replace('www.', '');
+              observations.push({ prompt: result.query, promptIndex: i, brand: brand.name, rank: brand.position, source: source.url, sourceDomain: domain, contentType });
+            } catch {}
+          }
+        } else {
+          observations.push({ prompt: result.query, promptIndex: i, brand: brand.name, rank: brand.position, source: null, sourceDomain: null, contentType });
+        }
+      }
+    }
+
+    // STEP 2: Extract claims
+    const claimObservations: ClaimObservation[] = [];
+    for (let i = 0; i < simulationResults.length; i++) {
+      const result = simulationResults[i];
+      if (!result.response || result.response.length < 50) continue;
       
-      const extractionPrompt = `Analyze this AI response and extract CLAIMS about each brand mentioned.
-
-QUERY: "${result.query}"
-
-AI RESPONSE:
-"${result.response?.substring(0, 2000) || 'No response'}"
-
-For each brand mentioned, extract claims and classify them:
-
-CLAIM TYPES:
-1. DIFFERENTIATOR - Unique competitive advantage (e.g., "fastest delivery", "only one with X feature", "best for enterprise")
-2. TABLE_STAKES - Expected feature everyone should have (e.g., "easy to use", "good support", "reliable")
-3. DISQUALIFIER - Deal-breaker when missing (e.g., "expensive", "limited integration", "steep learning curve")
-
-Return JSON array:
-[
-  {
-    "brand": "BrandName",
-    "claim": "specific claim text",
-    "claimType": "differentiator" | "table_stakes" | "disqualifier"
-  }
-]
-
-RULES:
-- Claims must be SPECIFIC (not "is good" or "is popular")
-- Claims must be COMPARATIVE or DESCRIPTIVE (how AI positions the brand)
-- Include negative claims as disqualifiers
-- Be precise about what makes something a differentiator vs table stakes
-
-Return ONLY valid JSON array.`;
-
+      const sourceUrl = result.sources?.length > 0 ? result.sources[0].url : null;
+      
       try {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { 
-              role: "system", 
-              content: "You are an expert at analyzing AI responses to extract and classify brand claims. You understand that AI recommendations are based on repeated patterns across sources, not random opinions. Extract claims precisely and classify them correctly." 
-            },
-            { role: "user", content: extractionPrompt }
+            { role: "system", content: "Extract WHY AI recommends products (reasons), not WHAT features they have. Max 3 claims per brand." },
+            { role: "user", content: `Query: "${result.query}"\nResponse: "${result.response?.substring(0, 2000)}"\n\nExtract claims as JSON: [{"brand": "X", "claim": "reason AI recommends", "claimType": "differentiator|table_stakes|disqualifier"}]` }
           ],
-          temperature: 0.2,
-          max_tokens: 1500,
+          temperature: 0.1,
+          max_tokens: 800,
         });
 
         const content = completion.choices[0].message.content || "[]";
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
-          const claims = JSON.parse(jsonMatch[0]) as { brand: string; claim: string; claimType: ClaimType }[];
-          claims.forEach(c => {
-            if (c.claim && c.claim.length >= 5) {
-              extractedClaims.push({
-                brand: c.brand,
-                claim: c.claim.toLowerCase().trim(),
-                claimType: c.claimType || 'table_stakes',
-                promptIndex: i,
-                query: result.query,
-                sources,
-              });
+          const claims = JSON.parse(jsonMatch[0]);
+          claims.forEach((c: any) => {
+            if (c.claim?.length >= 10) {
+              claimObservations.push({ claim: c.claim.toLowerCase().trim(), brand: c.brand, prompt: result.query, promptIndex: i, source: sourceUrl });
             }
           });
         }
-      } catch (e) {
-        console.error("Claim extraction error for prompt", i, e);
-      }
+      } catch (e) { console.error("Claim error", i, e); }
     }
 
-    console.log('Total extracted claims:', extractedClaims.length);
-    console.log('Sample claims:', extractedClaims.slice(0, 5).map(c => ({ brand: c.brand, claim: c.claim, type: c.claimType })));
+    // STEP 3: Canonicalize claims
+    const uniqueClaims = [...new Set(claimObservations.map(c => c.claim))];
+    const canonicalClaims: CanonicalClaim[] = uniqueClaims.slice(0, 20).map((claim, i) => ({
+      id: `claim-${i}`,
+      label: claim,
+      variants: [claim],
+      claimType: inferClaimType(claim),
+    }));
 
-    // ========================================================================
-    // STEP 2: Build TRIANGULATED claim map (Claim → Source → Prompt)
-    // ========================================================================
-    
+    // STEP 4: Triangulate
     const triangulatedClaims = new Map<string, TriangulatedClaim>();
-    
-    extractedClaims.forEach(ec => {
-      const claimKey = ec.claim;
-      const brandLower = ec.brand.toLowerCase();
-      const isYourBrand = brandLower === yourBrand || 
-                          brandLower.includes(yourBrand) || 
-                          yourBrand.includes(brandLower);
+    for (const canonical of canonicalClaims) {
+      const matching = claimObservations.filter(co => co.claim === canonical.label);
+      if (matching.length === 0) continue;
       
-      if (!triangulatedClaims.has(claimKey)) {
-        triangulatedClaims.set(claimKey, {
-          claim: ec.claim,
-          claimType: ec.claimType,
-          prompts: [],
-          sources: [],
-          competitors: [],
-          yourBrandMentions: 0,
-          totalMentions: 0,
-        });
+      const uniquePrompts = new Set(matching.map(o => o.promptIndex));
+      const uniqueSources = new Set(matching.map(o => o.source).filter(Boolean));
+      
+      const competitorMap = new Map<string, { mentions: number; ranks: number[] }>();
+      let yourBrandMentions = 0;
+      
+      for (const obs of matching) {
+        const brandLower = obs.brand.toLowerCase();
+        const isYours = brandLower === yourBrand || brandLower.includes(yourBrand) || yourBrand.includes(brandLower);
+        if (isYours) { yourBrandMentions++; }
+        else {
+          const existing = competitorMap.get(obs.brand) || { mentions: 0, ranks: [] };
+          existing.mentions++;
+          const matchObs = observations.find(o => o.promptIndex === obs.promptIndex && o.brand.toLowerCase() === brandLower);
+          if (matchObs?.rank) existing.ranks.push(matchObs.rank);
+          competitorMap.set(obs.brand, existing);
+        }
       }
       
-      const entry = triangulatedClaims.get(claimKey)!;
-      entry.totalMentions++;
+      const competitorsList = Array.from(competitorMap.entries()).map(([brand, data]) => ({
+        brand, mentions: data.mentions, avgRank: data.ranks.length > 0 ? data.ranks.reduce((a, b) => a + b, 0) / data.ranks.length : 99,
+      }));
       
-      // Track prompts
-      const promptType = classifyPromptType(ec.query);
-      if (!entry.prompts.find(p => p.index === ec.promptIndex)) {
-        entry.prompts.push({
-          query: ec.query,
-          index: ec.promptIndex,
-          promptType,
-        });
-      }
+      const sourcesList = Array.from(new Set(matching.map(o => o.source).filter(Boolean))).map(url => {
+        try { const domain = new URL(url!).hostname.replace('www.', ''); return { domain, url: url!, citationCount: 1, sourceType: classifySourceType(domain) }; } catch { return null; }
+      }).filter(Boolean) as TriangulatedClaim['sources'];
       
-      // Track sources
-      ec.sources.forEach(sourceUrl => {
-        try {
-          const domain = new URL(sourceUrl).hostname.replace('www.', '');
-          const existing = entry.sources.find(s => s.domain === domain);
-          if (existing) {
-            existing.citationCount++;
-          } else {
-            entry.sources.push({
-              domain,
-              url: sourceUrl,
-              citationCount: 1,
-              sourceType: classifySourceType(domain) as TriangulatedClaim['sources'][0]['sourceType'],
-            });
-          }
-        } catch {}
+      const promptsList = Array.from(uniquePrompts).map(idx => {
+        const obs = matching.find(o => o.promptIndex === idx)!;
+        return { query: obs.prompt, index: idx, promptType: classifyPromptType(obs.prompt) };
       });
       
-      // Track brand mentions
-      if (isYourBrand) {
-        entry.yourBrandMentions++;
+      triangulatedClaims.set(canonical.id, {
+        canonicalId: canonical.id, label: canonical.label, claimType: canonical.claimType,
+        promptSupport: uniquePrompts.size, sourceSupport: uniqueSources.size, competitorSupport: competitorMap.size, yourBrandSupport: yourBrandMentions,
+        prompts: promptsList, sources: sourcesList, competitors: competitorsList, totalMentions: matching.length,
+      });
+    }
+
+    // STEP 5: Filter actionable
+    const actionableClaims: TriangulatedClaim[] = [];
+    console.log(`\n=== STEP 5: Filtering ${triangulatedClaims.size} claims ===`);
+    triangulatedClaims.forEach(claim => {
+      const meetsPrompt = claim.promptSupport >= THRESHOLDS.MIN_PROMPT_SUPPORT;
+      const meetsSource = claim.sourceSupport >= THRESHOLDS.MIN_SOURCE_SUPPORT;
+      const meetsCompetitor = claim.competitorSupport >= THRESHOLDS.MIN_COMPETITOR_SUPPORT;
+      const notYours = claim.yourBrandSupport === 0;
+      
+      console.log(`Claim: "${claim.label.substring(0, 50)}..."`);
+      console.log(`  Prompt: ${claim.promptSupport} >= ${THRESHOLDS.MIN_PROMPT_SUPPORT}? ${meetsPrompt}`);
+      console.log(`  Source: ${claim.sourceSupport} >= ${THRESHOLDS.MIN_SOURCE_SUPPORT}? ${meetsSource}`);
+      console.log(`  Competitor: ${claim.competitorSupport} >= ${THRESHOLDS.MIN_COMPETITOR_SUPPORT}? ${meetsCompetitor}`);
+      console.log(`  Not yours: ${notYours}`);
+      
+      if (meetsPrompt && meetsSource && meetsCompetitor && notYours) {
+        actionableClaims.push(claim);
+        console.log(`  ✅ ACTIONABLE`);
       } else {
-        const existingComp = entry.competitors.find(c => c.brand.toLowerCase() === brandLower);
-        if (existingComp) {
-          existingComp.mentions++;
-        } else {
-          entry.competitors.push({ brand: ec.brand, mentions: 1 });
-        }
+        console.log(`  ❌ FILTERED OUT`);
       }
     });
+    console.log(`\nActionable claims: ${actionableClaims.length}`);
+    actionableClaims.sort((a, b) => { const order = { differentiator: 3, table_stakes: 2, disqualifier: 1 }; return (order[b.claimType] || 0) - (order[a.claimType] || 0); });
 
-    console.log('Triangulated claims:', triangulatedClaims.size);
-    console.log('Sample triangulated:', Array.from(triangulatedClaims.entries()).slice(0, 3).map(([key, claim]) => ({
-      claim: key,
-      competitors: claim.competitors.length,
-      yourBrand: claim.yourBrandMentions,
-      sources: claim.sources.length
-    })));
-
-    // ========================================================================
-    // STEP 3: Detect missing claims with THRESHOLDS
-    // ========================================================================
-    
-    const missingClaims: TriangulatedClaim[] = [];
-    
-    triangulatedClaims.forEach((claim) => {
-      const competitorMentions = claim.competitors.reduce((sum, c) => sum + c.mentions, 0);
-      
-      // Apply thresholds
-      if (
-        competitorMentions >= THRESHOLDS.MIN_CLAIM_FREQUENCY &&
-        claim.yourBrandMentions === 0 &&
-        claim.sources.length >= 1
-      ) {
-        missingClaims.push(claim);
-      } else {
-        // Log why claims are being filtered out
-        if (competitorMentions < THRESHOLDS.MIN_CLAIM_FREQUENCY) {
-          console.log(`Filtered out "${claim.claim}": competitor mentions ${competitorMentions} < ${THRESHOLDS.MIN_CLAIM_FREQUENCY}`);
-        }
-        if (claim.yourBrandMentions > 0) {
-          console.log(`Filtered out "${claim.claim}": your brand already has ${claim.yourBrandMentions} mentions`);
-        }
-        if (claim.sources.length < 1) {
-          console.log(`Filtered out "${claim.claim}": no sources`);
-        }
-      }
-    });
-    
-    console.log('Missing claims after thresholds:', missingClaims.length);
-    console.log('Sample missing claims:', missingClaims.slice(0, 3).map(c => ({
-      claim: c.claim,
-      type: c.claimType,
-      competitorMentions: c.competitors.reduce((sum, comp) => sum + comp.mentions, 0),
-      yourMentions: c.yourBrandMentions
-    })));
-    
-    // Sort by impact (differentiators first, then by frequency)
-    missingClaims.sort((a, b) => {
-      // Differentiators > table_stakes > disqualifiers
-      const typeOrder = { differentiator: 3, table_stakes: 2, disqualifier: 1 };
-      const typeScore = (typeOrder[b.claimType] || 0) - (typeOrder[a.claimType] || 0);
-      if (typeScore !== 0) return typeScore;
-      
-      // Then by high-intent prompt count
-      const aHighIntent = a.prompts.filter(p => p.promptType === 'high_intent' || p.promptType === 'comparison').length;
-      const bHighIntent = b.prompts.filter(p => p.promptType === 'high_intent' || p.promptType === 'comparison').length;
-      if (bHighIntent !== aHighIntent) return bHighIntent - aHighIntent;
-      
-      // Then by total mentions
-      const aMentions = a.competitors.reduce((sum, c) => sum + c.mentions, 0);
-      const bMentions = b.competitors.reduce((sum, c) => sum + c.mentions, 0);
-      return bMentions - aMentions;
-    });
-
-    // ========================================================================
-    // STEP 4: Generate CONTENT recommendations from missing claims
-    // Focus on TOP insights about competitors only
-    // ========================================================================
-    
+    // STEP 6: Generate content
     const contentRecommendations: ContentRecommendation[] = [];
-    let contentId = 0;
+    const topClaims = actionableClaims.slice(0, THRESHOLDS.MAX_CONTENT_RECOMMENDATIONS);
     
-    // Sort claims by impact to get the most important ones
-    const sortedClaims = missingClaims.sort((a, b) => {
-      const scoreA = a.totalMentions * 10 + a.sources.length * 5 + a.prompts.filter(p => p.promptType === 'high_intent').length * 3;
-      const scoreB = b.totalMentions * 10 + b.sources.length * 5 + b.prompts.filter(p => p.promptType === 'high_intent').length * 3;
-      return scoreB - scoreA;
-    });
-    
-    // Take only top claims up to MAX limit
-    const topClaims = sortedClaims.slice(0, THRESHOLDS.MAX_CONTENT_RECOMMENDATIONS);
-    
-    for (const claim of topClaims) {
-      const competitorMentions = claim.competitors.reduce((sum, c) => sum + c.mentions, 0);
-      const topCompetitor = claim.competitors.sort((a, b) => b.mentions - a.mentions)[0];
-      const highIntentPrompts = claim.prompts.filter(p => 
-        p.promptType === 'high_intent' || p.promptType === 'comparison'
-      ).length;
-      
-      // Calculate REAL impact score
-      const baseImpact = (claim.prompts.length / totalPrompts) * 100;
-      const highIntentBoost = highIntentPrompts * THRESHOLDS.HIGH_INTENT_MULTIPLIER;
-      const sourceBoost = claim.sources.filter(s => 
-        s.sourceType === 'review_site' || s.sourceType === 'comparison'
-      ).length * THRESHOLDS.AUTHORITY_SOURCE_BOOST;
-      
-      const impactScore = Math.min(100, Math.round(baseImpact + highIntentBoost + sourceBoost));
-      
-      // Build causal evidence
-      const causalEvidence = {
-        promptPercentage: Math.round((claim.prompts.length / totalPrompts) * 100),
-        highIntentPrompts,
-        totalPromptsAffected: claim.prompts.length,
-        reinforcingSources: claim.sources.length,
-        sourceTypes: [...new Set(claim.sources.map(s => s.sourceType))],
-        topCompetitor: topCompetitor?.brand || 'competitors',
-        topCompetitorMentions: topCompetitor?.mentions || competitorMentions,
-      };
-      
-      // Generate the MAGIC SENTENCE (why AI says this)
-      const whyAISaysThis = generateWhyAISaysThis(claim, causalEvidence);
-      const evidenceSummary = generateEvidenceSummary(claim, causalEvidence, totalPrompts);
-      
-      // Generate content with expected impact
-      const recommendedContent = generateContentForClaim(
-        claim.claim, 
-        companyName, 
-        claim.competitors.slice(0, 3).map(c => [c.brand, c.mentions] as [string, number]),
-        claim.claimType,
-        causalEvidence
-      );
+    for (let i = 0; i < topClaims.length; i++) {
+      const claim = topClaims[i];
+      const topComp = claim.competitors.sort((a, b) => b.mentions - a.mentions)[0];
+      const highIntent = claim.prompts.filter(p => p.promptType === 'high_intent' || p.promptType === 'comparison').length;
+      const confidence = calculateConfidence(claim, totalPrompts);
       
       contentRecommendations.push({
-        id: `content-${contentId++}`,
-        missingClaim: claim.claim,
+        id: `content-${i}`,
+        missingClaim: claim.label,
         claimType: claim.claimType,
-        causalEvidence,
-        evidenceSummary,
-        whyAISaysThis,
-        impactScore,
-        competitorMentions: claim.competitors.slice(0, 4).map(c => ({ brand: c.brand, count: c.mentions })),
-        triangulation: {
-          prompts: claim.prompts.slice(0, 5).map(p => p.query),
-          sources: claim.sources.slice(0, 5).map(s => s.domain),
-        },
-        recommendedContent,
-        priority: impactScore >= 40 ? 'critical' : impactScore >= 20 ? 'high' : 'medium',
+        confidence,
+        causalEvidence: { promptsAffected: claim.promptSupport, highIntentPrompts: highIntent, sourceDomains: claim.sourceSupport, topCompetitor: topComp?.brand || 'competitors', topCompetitorMentions: topComp?.mentions || 0 },
+        whyAISaysThis: `AI associates "${claim.label}" with ${topComp?.brand || 'competitors'} because ${claim.sourceSupport} sources reinforce this. You're missing because no sources make this claim about you.`,
+        evidenceSummary: `${Math.round((claim.promptSupport / totalPrompts) * 100)}% of prompts • ${claim.sourceSupport} sources • ${topComp?.brand} mentioned ${topComp?.mentions}×`,
+        triangulation: { prompts: claim.prompts.slice(0, 5).map(p => p.query), sources: claim.sources.slice(0, 5).map(s => s.domain), competitors: claim.competitors.slice(0, 3).map(c => c.brand) },
+        recommendedContent: generateContent(claim, companyName, topComp),
+        priority: confidence.final >= 60 ? 'critical' : confidence.final >= 40 ? 'high' : confidence.final >= 20 ? 'medium' : 'weak_signal',
       });
     }
 
-    // ========================================================================
-    // STEP 5: Generate OUTREACH recommendations with authority thresholds
-    // ========================================================================
+    // STEP 7: Generate outreach
+    console.log(`\n=== STEP 7: Building outreach from ${observations.length} observations ===`);
+    const sourceAuth = new Map<string, { domain: string; sims: Set<number>; comps: Set<string>; claims: Set<string>; type: string }>();
+    for (const obs of observations) {
+      if (!obs.sourceDomain) continue;
+      if (!sourceAuth.has(obs.sourceDomain)) sourceAuth.set(obs.sourceDomain, { domain: obs.sourceDomain, sims: new Set(), comps: new Set(), claims: new Set(), type: classifySourceType(obs.sourceDomain) });
+      const entry = sourceAuth.get(obs.sourceDomain)!;
+      entry.sims.add(obs.promptIndex);
+      const isYours = obs.brand.toLowerCase() === yourBrand;
+      if (!isYours) entry.comps.add(obs.brand);
+    }
     
-    // Build source authority map
-    const sourceAuthority = new Map<string, {
-      domain: string;
-      citationCount: number;
-      promptsAffected: Set<number>;
-      competitorsPresent: Set<string>;
-      claimsReinforced: Set<string>;
-      sourceType: 'review_site' | 'publication' | 'directory' | 'community' | 'comparison' | 'other';
-    }>();
-    
-    extractedClaims.forEach(ec => {
-      ec.sources.forEach(sourceUrl => {
-        try {
-          const domain = new URL(sourceUrl).hostname.replace('www.', '');
-          if (!sourceAuthority.has(domain)) {
-            sourceAuthority.set(domain, {
-              domain,
-              citationCount: 0,
-              promptsAffected: new Set(),
-              competitorsPresent: new Set(),
-              claimsReinforced: new Set(),
-              sourceType: classifySourceType(domain) as any,
-            });
-          }
-          
-          const entry = sourceAuthority.get(domain)!;
-          entry.citationCount++;
-          entry.promptsAffected.add(ec.promptIndex);
-          entry.claimsReinforced.add(ec.claim);
-          
-          const brandLower = ec.brand.toLowerCase();
-          if (brandLower !== yourBrand && !brandLower.includes(yourBrand) && !yourBrand.includes(brandLower)) {
-            entry.competitorsPresent.add(ec.brand);
-          }
-        } catch {}
-      });
-    });
-    
+    console.log(`Total sources found: ${sourceAuth.size}`);
     const outreachRecommendations: OutreachRecommendation[] = [];
-    let outreachId = 0;
-    
     const actionableTypes = ['review_site', 'publication', 'directory', 'community'];
-    
-    sourceAuthority.forEach((source) => {
-      // Apply AUTHORITY THRESHOLDS
-      if (
-        actionableTypes.includes(source.sourceType) &&
-        source.citationCount >= THRESHOLDS.MIN_SOURCE_CITATIONS &&
-        source.competitorsPresent.size >= 1
-      ) {
-        // Calculate authority score
-        const authorityScore = 
-          source.citationCount * 10 + 
-          source.promptsAffected.size * 5 + 
-          source.competitorsPresent.size * 3 +
-          (source.sourceType === 'review_site' ? 20 : 0) +
-          (source.sourceType === 'directory' ? 15 : 0);
-        
-        const priority = authorityScore >= 50 ? 'critical' : authorityScore >= 30 ? 'high' : 'medium';
+    sourceAuth.forEach(source => {
+      const isActionableType = actionableTypes.includes(source.type);
+      const meetsSimThreshold = source.sims.size >= THRESHOLDS.MIN_OUTREACH_SIMULATIONS;
+      const meetsCompThreshold = source.comps.size >= THRESHOLDS.MIN_OUTREACH_COMPETITORS;
+      
+      console.log(`Source: ${source.domain}`);
+      console.log(`  Type: ${source.type} (actionable: ${isActionableType})`);
+      console.log(`  Simulations: ${source.sims.size} >= ${THRESHOLDS.MIN_OUTREACH_SIMULATIONS}? ${meetsSimThreshold}`);
+      console.log(`  Competitors: ${source.comps.size} >= ${THRESHOLDS.MIN_OUTREACH_COMPETITORS}? ${meetsCompThreshold}`);
+      
+      if (isActionableType && meetsSimThreshold && meetsCompThreshold) {
+        console.log(`  ✅ OUTREACH CANDIDATE`);
+        const conf = { promptConfidence: Math.min(100, (source.sims.size / totalPrompts) * 300), sourceConfidence: source.type === 'review_site' ? 90 : 60, competitivePressure: Math.min(100, source.comps.size * 30), final: 0, explanation: '' };
+        conf.final = Math.round(0.4 * conf.promptConfidence + 0.35 * conf.sourceConfidence + 0.25 * conf.competitivePressure);
+        conf.explanation = `Cited in ${source.sims.size} simulations with ${source.comps.size} competitors`;
         
         outreachRecommendations.push({
-          id: `outreach-${outreachId++}`,
-          type: source.sourceType as any,
+          id: `outreach-${outreachRecommendations.length}`,
+          type: source.type as any,
           platform: source.domain,
           url: `https://${source.domain}`,
-          reason: generateOutreachReason(source),
-          causalEvidence: {
-            citationCount: source.citationCount,
-            promptsAffected: source.promptsAffected.size,
-            competitorsPresent: source.competitorsPresent.size,
-            claimsReinforced: Array.from(source.claimsReinforced).slice(0, 3),
-          },
-          competitorPresence: Array.from(source.competitorsPresent),
-          priority,
-          actions: generateOutreachActions(source.sourceType, source.domain, companyName),
-          authorityScore,
+          reason: `Cited ${source.sims.size}× across simulations. ${Array.from(source.comps).slice(0, 2).join(', ')} are present here.`,
+          causalEvidence: { simulationsAppeared: source.sims.size, competitorsPresent: Array.from(source.comps), claimsReinforced: [] },
+          confidence: conf,
+          priority: conf.final >= 60 ? 'critical' : conf.final >= 40 ? 'high' : 'medium',
+          actions: generateActions(source.type, source.domain, companyName),
         });
+      } else {
+        console.log(`  ❌ FILTERED OUT`);
       }
     });
-    
-    // Sort by authority score
-    outreachRecommendations.sort((a, b) => b.authorityScore - a.authorityScore);
+    outreachRecommendations.sort((a, b) => b.confidence.final - a.confidence.final);
 
-    console.log('=== FINAL RESULTS ===');
-    console.log('Content recommendations:', contentRecommendations.length);
-    console.log('Outreach recommendations:', outreachRecommendations.length);
-    console.log('Stats:', {
-      totalPrompts,
-      totalClaimsExtracted: extractedClaims.length,
-      uniqueClaims: triangulatedClaims.size,
-      missingClaims: missingClaims.length,
-    });
+    console.log(`\n=== FINAL RESULTS ===`);
+    console.log(`Content recommendations: ${contentRecommendations.length}`);
+    console.log(`Outreach recommendations: ${outreachRecommendations.length}`);
 
     return NextResponse.json({
       success: true,
-      stats: {
-        totalPrompts,
-        totalClaimsExtracted: extractedClaims.length,
-        uniqueClaims: triangulatedClaims.size,
-        missingClaims: missingClaims.length,
-        actionableSources: outreachRecommendations.length,
-      },
+      stats: { totalPrompts, observations: observations.length, claims: claimObservations.length, actionable: actionableClaims.length },
       contentRecommendations,
-      outreachRecommendations: outreachRecommendations.slice(0, 8),
+      outreachRecommendations: outreachRecommendations.slice(0, THRESHOLDS.MAX_OUTREACH_RECOMMENDATIONS),
     });
-
   } catch (error) {
     console.error("Extract claims error:", error);
-    return NextResponse.json({ success: false, error: "Failed to extract claims" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed" }, { status: 500 });
   }
 }
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-function classifyPromptType(query: string): 'high_intent' | 'comparison' | 'discovery' | 'general' {
-  const q = query.toLowerCase();
-  
-  // High intent - ready to buy/use
-  if (q.includes('best') || q.includes('top') || q.includes('recommend') || 
-      q.includes('should i use') || q.includes('which') || q.includes('pricing')) {
-    return 'high_intent';
-  }
-  
-  // Comparison - explicitly comparing
-  if (q.includes(' vs ') || q.includes('versus') || q.includes('alternative') ||
-      q.includes('compare') || q.includes('difference between')) {
-    return 'comparison';
-  }
-  
-  // Discovery - learning about category
-  if (q.includes('what is') || q.includes('how does') || q.includes('explain') ||
-      q.includes('types of') || q.includes('examples of')) {
-    return 'discovery';
-  }
-  
+function classifyPromptType(q: string): 'high_intent' | 'comparison' | 'discovery' | 'general' {
+  const l = q.toLowerCase();
+  if (l.includes('best') || l.includes('top') || l.includes('recommend')) return 'high_intent';
+  if (l.includes(' vs ') || l.includes('alternative') || l.includes('compare')) return 'comparison';
+  if (l.includes('what is') || l.includes('how does')) return 'discovery';
   return 'general';
 }
 
-function classifySourceType(domain: string): string {
-  const d = domain.toLowerCase();
+function classifyContentType(q: string): 'list' | 'comparison' | 'review' | 'general' {
+  const l = q.toLowerCase();
+  if (l.includes('best') || l.includes('top')) return 'list';
+  if (l.includes(' vs ') || l.includes('compare')) return 'comparison';
+  return 'general';
+}
+
+function classifySourceType(d: string): string {
+  const l = d.toLowerCase();
   
-  const reviewSites = ['g2.com', 'capterra.com', 'trustradius.com', 'getapp.com', 'softwareadvice.com', 'trustpilot.com'];
-  const publications = ['techcrunch.com', 'forbes.com', 'wired.com', 'theverge.com', 'venturebeat.com', 'zdnet.com', 'cnet.com'];
-  const directories = ['producthunt.com', 'alternativeto.net', 'slant.co', 'stackshare.io', 'saasworthy.com'];
-  const communities = ['reddit.com', 'medium.com', 'dev.to', 'quora.com', 'stackoverflow.com'];
-  const comparison = ['versus.com', 'slashdot.org', 'sourceforge.net'];
+  // Review sites
+  if (['g2.com', 'capterra.com', 'trustradius.com', 'getapp.com', 'softwareadvice.com', 'trustpilot.com'].some(s => l.includes(s))) return 'review_site';
   
-  if (reviewSites.some(s => d.includes(s))) return 'review_site';
-  if (publications.some(s => d.includes(s))) return 'publication';
-  if (directories.some(s => d.includes(s))) return 'directory';
-  if (communities.some(s => d.includes(s))) return 'community';
-  if (comparison.some(s => d.includes(s))) return 'comparison';
+  // Publications & blogs (broader definition)
+  if (['techcrunch.com', 'forbes.com', 'wired.com', 'theverge.com', 'venturebeat.com', 'zdnet.com', 'cnet.com', 'lifewire.com', 'thebrandhopper.com', 'aiapps.com', 'reelmind.ai'].some(s => l.includes(s))) return 'publication';
+  
+  // Directories & comparison sites
+  if (['producthunt.com', 'alternativeto.net', 'slant.co', 'stackshare.io', 'saasworthy.com', 'zapier.com', 'appliedai.tools', 'votars.ai'].some(s => l.includes(s))) return 'directory';
+  
+  // Communities
+  if (['reddit.com', 'medium.com', 'quora.com', 'dev.to', 'stackoverflow.com'].some(s => l.includes(s))) return 'community';
+  
+  // Official product sites and documentation (treat as publication for outreach purposes)
+  if (l.includes('blog') || l.includes('news') || l.includes('help') || l.includes('support') || l.includes('docs')) return 'publication';
   
   return 'other';
 }
 
-function generateWhyAISaysThis(claim: TriangulatedClaim, evidence: ContentRecommendation['causalEvidence']): string {
-  const sourceTypes = evidence.sourceTypes.filter(t => t !== 'other');
-  const sourceDesc = sourceTypes.length > 0 
-    ? sourceTypes.map(t => t.replace('_', ' ')).join(' and ') + ' articles'
-    : 'multiple sources';
-  
-  return `AI associates "${claim.claim}" with ${evidence.topCompetitor} because ${evidence.reinforcingSources} ${sourceDesc} repeatedly mention this. When users ask about this topic, AI retrieves these sources and reinforces the claim. You're missing because no authoritative sources make this claim about you.`;
+function inferClaimType(c: string): ClaimType {
+  const l = c.toLowerCase();
+  if (l.includes('expensive') || l.includes('complex') || l.includes('limited')) return 'disqualifier';
+  if (l.includes('best') || l.includes('only') || l.includes('leading')) return 'differentiator';
+  return 'table_stakes';
 }
 
-function generateEvidenceSummary(claim: TriangulatedClaim, evidence: ContentRecommendation['causalEvidence'], totalPrompts: number): string {
-  const parts: string[] = [];
-  
-  parts.push(`Appears in ${evidence.promptPercentage}% of prompts (${evidence.totalPromptsAffected}/${totalPrompts})`);
-  
-  if (evidence.highIntentPrompts > 0) {
-    parts.push(`${evidence.highIntentPrompts} high-intent/comparison prompts`);
-  }
-  
-  parts.push(`Reinforced by ${evidence.reinforcingSources} sources`);
-  parts.push(`${evidence.topCompetitor} mentioned ${evidence.topCompetitorMentions}× for this claim`);
-  
-  return parts.join(' • ');
+function calculateConfidence(claim: TriangulatedClaim, total: number): ConfidenceScore {
+  const prompt = Math.min(100, (claim.promptSupport / total) * 200);
+  const source = Math.min(100, claim.sourceSupport * 20);
+  const competitive = Math.min(100, claim.competitors.reduce((s, c) => s + c.mentions, 0) * 20);
+  const final = Math.round(0.4 * prompt + 0.35 * source + 0.25 * competitive);
+  return { promptConfidence: Math.round(prompt), sourceConfidence: Math.round(source), competitivePressure: Math.round(competitive), final, explanation: `${claim.promptSupport} prompts, ${claim.sourceSupport} sources, ${claim.competitors.length} competitors` };
 }
 
-function generateContentForClaim(
-  claim: string, 
-  brandName: string, 
-  topCompetitors: [string, number][],
-  claimType: ClaimType,
-  causalEvidence: ContentRecommendation['causalEvidence']
-): ContentRecommendation['recommendedContent'] {
+function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: string; mentions: number } | undefined): ContentRecommendation['recommendedContent'] {
+  const label = claim.label.charAt(0).toUpperCase() + claim.label.slice(1);
   const content: ContentRecommendation['recommendedContent'] = [];
-  const claimCapitalized = claim.charAt(0).toUpperCase() + claim.slice(1);
-  const impactPct = causalEvidence.promptPercentage;
   
-  // Blog post about the claim
-  content.push({
-    type: 'blog',
-    title: `How ${brandName} Delivers ${claimCapitalized}`,
-    outline: [
-      `Why ${claim} matters in today's market`,
-      `How ${brandName} approaches ${claim}`,
-      `Real examples and case studies`,
-      `Comparison with traditional solutions`,
-      `Getting started with ${brandName}`,
-    ],
-    reason: `AI mentions "${claim}" for competitors but never for you. This blog will establish your association with this claim.`,
-    expectedImpact: `Publishing this could influence ${impactPct}% of prompts where this claim appears. ${claimType === 'differentiator' ? 'This is a differentiator - high value.' : ''}`,
-  });
-
-  // Dedicated page
-  content.push({
-    type: 'page',
-    title: `${brandName} ${claimCapitalized}`,
-    outline: [
-      `Overview of ${claim} capabilities`,
-      `Key features that enable ${claim}`,
-      `Customer testimonials`,
-      `Pricing and plans`,
-      `FAQ about ${claim}`,
-    ],
-    reason: `Create a permanent, indexable page that AI can reference when discussing ${claim}.`,
-    expectedImpact: `A dedicated page gives AI a clear source to cite. Currently ${causalEvidence.reinforcingSources} sources reinforce this for competitors.`,
-  });
-
-  // Comparison with top competitor
-  if (topCompetitors.length > 0) {
-    const topComp = topCompetitors[0][0];
-    const topCompMentions = topCompetitors[0][1];
-    content.push({
-      type: 'comparison',
-      title: `${brandName} vs ${topComp}: ${claimCapitalized} Comparison`,
-      outline: [
-        `${brandName} and ${topComp} at a glance`,
-        `${claimCapitalized}: head-to-head comparison`,
-        `Pricing comparison`,
-        `When to choose ${brandName}`,
-        `When to choose ${topComp}`,
-        `Migration guide`,
-      ],
-      reason: `${topComp} is mentioned ${topCompMentions} times for "${claim}". This comparison will capture "alternatives to ${topComp}" searches.`,
-      expectedImpact: `Comparison pages are heavily weighted by AI. ${causalEvidence.highIntentPrompts} high-intent prompts could be influenced.`,
-    });
+  if (claim.claimType === 'table_stakes') {
+    content.push({ type: 'use_case_page', title: `${brand} for ${label}`, outline: ['Problem overview', `How ${brand} solves this`, 'Customer results', 'Getting started'], reason: 'Missing table stakes claim - need dedicated page' });
+  } else if (claim.claimType === 'differentiator') {
+    content.push({ type: 'comparison', title: `${brand} vs ${top?.brand || 'Competitors'}: ${label}`, outline: ['At a glance', 'Head-to-head comparison', `When to choose ${brand}`, 'Migration guide'], reason: 'Differentiator owned by competitor - comparison captures alternatives' });
+  } else {
+    content.push({ type: 'blog', title: `When ${label} Matters (And When It Doesn't)`, outline: ['Understanding the tradeoff', `How ${brand} approaches this`, 'Real-world scenarios', 'Making the right choice'], reason: 'Disqualifier claim - address concerns directly' });
   }
-
+  
+  content.push({ type: 'blog', title: `How ${brand} Delivers ${label}`, outline: [`Why ${claim.label} matters`, `${brand}'s approach`, 'Real examples', 'Getting started'], reason: 'Reinforce missing claim with authoritative content' });
+  
   return content;
 }
 
-function generateOutreachReason(source: {
-  domain: string;
-  citationCount: number;
-  promptsAffected: Set<number>;
-  competitorsPresent: Set<string>;
-  claimsReinforced: Set<string>;
-}): string {
-  const competitors = Array.from(source.competitorsPresent).slice(0, 2).join(', ');
-  const claims = Array.from(source.claimsReinforced).slice(0, 2).join(', ');
-  
-  return `Cited ${source.citationCount}× across ${source.promptsAffected.size} prompts. ${competitors} are present here. AI uses this source to reinforce claims like "${claims}".`;
-}
-
-function generateOutreachActions(type: string, domain: string, brandName: string): string[] {
-  switch (type) {
-    case 'review_site':
-      return [
-        `Claim your ${brandName} profile on ${domain}`,
-        `Add complete product description with key features`,
-        `Launch review collection campaign (target 10+ reviews)`,
-        `Respond to existing reviews professionally`,
-      ];
-    case 'publication':
-      return [
-        `Pitch a guest article about your unique approach`,
-        `Offer founder interview or case study`,
-        `Share newsworthy updates (funding, milestones)`,
-        `Build relationship with relevant journalists`,
-      ];
-    case 'directory':
-      return [
-        `Submit ${brandName} to ${domain}`,
-        `Optimize listing with detailed description`,
-        `Add comparison with alternatives`,
-        `Encourage users to upvote/review`,
-      ];
-    case 'community':
-      return [
-        `Create authentic presence on ${domain}`,
-        `Answer relevant questions mentioning your category`,
-        `Share valuable content (not promotional)`,
-        `Build reputation before mentioning ${brandName}`,
-      ];
-    default:
-      return [`Get ${brandName} mentioned on ${domain}`];
-  }
+function generateActions(type: string, domain: string, brand: string): string[] {
+  if (type === 'review_site') return [`Claim ${brand} profile on ${domain}`, 'Complete product description', 'Launch review campaign'];
+  if (type === 'publication') return ['Pitch guest article', 'Offer founder interview', 'Share newsworthy updates'];
+  if (type === 'directory') return [`Submit ${brand} to ${domain}`, 'Optimize listing', 'Encourage upvotes'];
+  return [`Build presence on ${domain}`, 'Answer relevant questions', 'Share valuable content'];
 }

@@ -26,13 +26,20 @@ export default function StepAnalysis() {
   const [currentQuery, setCurrentQuery] = useState("");
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
-  const [currentPhase, setCurrentPhase] = useState<'simulating' | 'generating_content' | 'done'>('simulating');
+  const [currentPhase, setCurrentPhase] = useState<'simulating' | 'extracting' | 'generating_content' | 'done'>('simulating');
 
   const analysisMessages = [
     "Analyzing your positioning",
     "Analyzing competitors",
     "Evaluating topic coverage",
     "Calculating visibility metrics",
+  ];
+  
+  const extractingMessages = [
+    "Extracting claims from AI responses",
+    "Analyzing what AI says about competitors",
+    "Building triangulation map",
+    "Calculating confidence scores",
   ];
   
   const contentGenerationMessages = [
@@ -46,7 +53,10 @@ export default function StepAnalysis() {
   useEffect(() => {
     if (!isSimulating) return;
     
-    const messages = currentPhase === 'simulating' ? analysisMessages : contentGenerationMessages;
+    const messages = 
+      currentPhase === 'simulating' ? analysisMessages : 
+      currentPhase === 'extracting' ? extractingMessages :
+      contentGenerationMessages;
     const messageInterval = setInterval(() => {
       setCurrentMessageIndex((prev) => (prev + 1) % messages.length);
     }, 3000); // Change message every 3 seconds
@@ -105,16 +115,16 @@ export default function StepAnalysis() {
             resultsCount: data.results?.length 
           });
           
-          // Update progress as each completes
+          // Update progress as each completes (simulations = 70% of total)
           completedCount++;
-          setProgress(Math.round((completedCount / totalCount) * 100));
+          setProgress(Math.round((completedCount / totalCount) * 70));
           
           return data;
         })
         .catch(error => {
           console.error(`Simulation error for "${topic.name}":`, error);
           completedCount++;
-          setProgress(Math.round((completedCount / totalCount) * 100));
+          setProgress(Math.round((completedCount / totalCount) * 70));
           return { success: false, results: [] };
         });
     });
@@ -135,9 +145,9 @@ export default function StepAnalysis() {
     setSimulationResults(allResults);
     calculateMetrics(allResults);
     
-    // Switch to content generation phase
-    setCurrentPhase('generating_content');
-    setProgress(0);
+    // Switch to extracting phase
+    setCurrentPhase('extracting');
+    setProgress(75);
     setCurrentMessageIndex(0);
     
     // Generate actions based on simulation results
@@ -162,10 +172,11 @@ export default function StepAnalysis() {
       console.error("Failed to generate actions:", error);
     }
     
-    // Extract claims for Content Ideas and Outreach
+    // Already in extracting phase, now call extract-claims
+    setProgress(80);
+    
     try {
       console.log('Extracting claims for content and outreach...');
-      setProgress(50);
       const claimsResponse = await fetch('/api/extract-claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,8 +188,9 @@ export default function StepAnalysis() {
         }),
       });
       
+      setProgress(85); // Claim extraction in progress
       const claimsData = await claimsResponse.json();
-      setProgress(100);
+      setProgress(95); // Content/outreach generation complete
       if (claimsData.success) {
         useOnboardingStore.getState().setContentRecommendations(
           claimsData.contentRecommendations || [], 
