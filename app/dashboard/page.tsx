@@ -663,7 +663,8 @@ export default function DashboardPage() {
         <div className="p-6">
           {/* Dashboard View */}
           {selectedView === "dashboard" && (
-            <div className="space-y-6">
+            <div className="pt-6 space-y-6">
+              <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="rounded-xl p-5 bg-white">
@@ -1019,7 +1020,8 @@ export default function DashboardPage() {
 
           {/* Competitors View */}
           {selectedView === "competitors" && (
-            <div className="max-w-4xl mx-auto space-y-8">
+            <div className="max-w-4xl mx-auto pt-6 space-y-6">
+              <h1 className="text-2xl font-semibold text-neutral-900">Competitors</h1>
               {/* Add Competitor - Underline Style */}
               <div className="flex gap-2 items-center">
                 <input
@@ -1093,12 +1095,10 @@ export default function DashboardPage() {
           {selectedView === "content" && (
             <div className="fixed inset-0 left-56 flex">
               {/* Left Sidebar - Content Topics List */}
-              <div className="w-80 border-r border-neutral-200 flex flex-col">
-                <div className="p-4 border-b border-neutral-200">
-                  <h2 className="font-semibold text-neutral-900">Content Ideas</h2>
-                  <p className="text-xs text-neutral-500 mt-0.5">Select a topic to view details</p>
+              <div className="w-80 border-r border-neutral-200 flex flex-col bg-neutral-50">
+                <div className="pt-6 px-3 pb-3">
+                  <h1 className="text-2xl font-semibold text-neutral-900">Content Ideas</h1>
                 </div>
-                
                 {isExtractingClaims && (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
@@ -1109,21 +1109,21 @@ export default function DashboardPage() {
                 )}
                 
                 {!isExtractingClaims && contentRecommendations.length > 0 && (
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     {contentRecommendations.map((rec) => (
                       <div
                         key={rec.id}
                         onClick={() => setExpandedContent(rec.id)}
-                        className={`p-3 border-b border-neutral-100 cursor-pointer transition-colors ${
-                          expandedContent === rec.id ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                        className={`p-3 cursor-pointer transition-all rounded-2xl ${
+                          expandedContent === rec.id ? 'bg-white shadow-sm' : 'bg-transparent hover:bg-white/50'
                         } ${rec.completed ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-neutral-900 truncate">
+                            <p className="text-sm font-medium text-neutral-900">
                               {rec.recommendedContent?.[0]?.title || rec.missingClaim}
                             </p>
-                            <p className="text-xs text-neutral-500 mt-0.5 truncate">
+                            <p className="text-xs text-neutral-500 mt-0.5">
                               {rec.recommendedContent?.[0]?.type === 'blog' ? 'Blog Post' : 
                                rec.recommendedContent?.[0]?.type === 'comparison' ? 'Comparison' : 'Page'}
                             </p>
@@ -1155,33 +1155,33 @@ export default function DashboardPage() {
                     const content = selectedContent.recommendedContent?.[0];
                     return (
                       <>
-                        {/* Actions Bar */}
-                        <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors">
-                              <Copy className="w-4 h-4" />
-                              Copy
-                            </button>
-                          </div>
-                          <button
-                            onClick={() => toggleContentComplete(selectedContent.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                              selectedContent.completed 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-neutral-900 text-white hover:bg-neutral-800'
-                            }`}
-                          >
-                            <Check className="w-4 h-4" />
-                            {selectedContent.completed ? 'Completed' : 'Mark Complete'}
-                          </button>
-                        </div>
-                        
                         {/* Content Body */}
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-1 overflow-y-auto p-6 pt-20">
                           <div className="max-w-2xl">
-                            <h1 className="text-2xl font-bold text-neutral-900 mb-6">
-                              {content?.title || selectedContent.missingClaim}
-                            </h1>
+                            <div className="flex items-start justify-between gap-4 mb-6">
+                              <h1 className="text-2xl font-bold text-neutral-900 flex-1">
+                                {content?.title || selectedContent.missingClaim}
+                              </h1>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button 
+                                  className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                                  title="Copy content"
+                                >
+                                  <Copy className="w-5 h-5" />
+                                </button>
+                                <button
+                                  onClick={() => toggleContentComplete(selectedContent.id)}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    selectedContent.completed 
+                                      ? 'text-green-600 bg-green-50 hover:bg-green-100' 
+                                      : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                                  }`}
+                                  title={selectedContent.completed ? 'Completed' : 'Mark as complete'}
+                                >
+                                  <Check className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
                             
                             {content?.outline?.map((section, i) => (
                               <div key={i} className="mb-6">
@@ -1228,12 +1228,10 @@ export default function DashboardPage() {
           {selectedView === "outreach" && (
             <div className="fixed inset-0 left-56 flex">
               {/* Left Sidebar - Sources List */}
-              <div className="w-80 border-r border-neutral-200 flex flex-col">
-                <div className="p-4 border-b border-neutral-200">
-                  <h2 className="font-semibold text-neutral-900">Email Outreach</h2>
-                  <p className="text-xs text-neutral-500 mt-0.5">Select a source to view email</p>
+              <div className="w-80 border-r border-neutral-200 flex flex-col bg-neutral-50">
+                <div className="pt-6 px-3 pb-3">
+                  <h1 className="text-2xl font-semibold text-neutral-900">Outreach</h1>
                 </div>
-                
                 {isExtractingClaims && (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
@@ -1244,17 +1242,17 @@ export default function DashboardPage() {
                 )}
                 
                 {!isExtractingClaims && outreachRecommendations.length > 0 && (
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     {outreachRecommendations.map((rec) => (
                       <div
                         key={rec.id}
                         onClick={() => setExpandedOutreach(rec.id)}
-                        className={`p-3 border-b border-neutral-100 cursor-pointer transition-colors ${
-                          expandedOutreach === rec.id ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                        className={`p-3 cursor-pointer transition-all rounded-2xl ${
+                          expandedOutreach === rec.id ? 'bg-white shadow-sm' : 'bg-transparent hover:bg-white/50'
                         } ${rec.completed ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${
+                          <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
                             rec.type === 'review_site' ? 'bg-green-500' :
                             rec.type === 'publication' ? 'bg-blue-500' :
                             rec.type === 'directory' ? 'bg-purple-500' :
@@ -1263,7 +1261,7 @@ export default function DashboardPage() {
                             {rec.platform?.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-neutral-900 truncate">
+                            <p className="text-sm font-medium text-neutral-900">
                               {rec.platform}
                             </p>
                             <p className="text-xs text-neutral-500">
@@ -1297,7 +1295,7 @@ export default function DashboardPage() {
                     return (
                       <>
                         {/* Email Form */}
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-1 overflow-y-auto p-6 pt-20">
                           <div className="max-w-xl space-y-4">
                             {/* Recipient */}
                             <div>
@@ -1307,9 +1305,41 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             
-                            {/* Subject */}
+                            {/* Subject with Actions */}
                             <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">Subject Line</label>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-medium text-neutral-500">Subject Line</label>
+                                <div className="flex items-center gap-2">
+                                  {selectedOutreach.url && (
+                                    <a
+                                      href={selectedOutreach.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                                      title="Visit site"
+                                    >
+                                      <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                  )}
+                                  <button 
+                                    className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                                    title="Copy email"
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => toggleOutreachComplete(selectedOutreach.id)}
+                                    className={`p-1.5 rounded-lg transition-colors ${
+                                      selectedOutreach.completed 
+                                        ? 'text-green-600 bg-green-50 hover:bg-green-100' 
+                                        : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                                    }`}
+                                    title={selectedOutreach.completed ? 'Completed' : 'Mark as complete'}
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
                               <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
                                 Partnership inquiry from {companyName}
                               </div>
@@ -1335,38 +1365,6 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Actions Bar */}
-                        <div className="p-4 border-t border-neutral-200 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg border border-neutral-200 transition-colors">
-                              <Copy className="w-4 h-4" />
-                              Copy
-                            </button>
-                            {selectedOutreach.url && (
-                              <a
-                                href={selectedOutreach.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg border border-neutral-200 transition-colors"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                                Visit Site
-                              </a>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => toggleOutreachComplete(selectedOutreach.id)}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-lg transition-colors ${
-                              selectedOutreach.completed 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-neutral-900 text-white hover:bg-neutral-800'
-                            }`}
-                          >
-                            <Check className="w-4 h-4" />
-                            {selectedOutreach.completed ? 'Completed' : 'Mark as Completed'}
-                          </button>
-                        </div>
                       </>
                     );
                   })()
@@ -1384,7 +1382,8 @@ export default function DashboardPage() {
 
           {/* Prompts View */}
           {selectedView === "prompts" && (
-            <div className="max-w-6xl mx-auto space-y-6">
+            <div className="max-w-6xl mx-auto pt-6 space-y-6">
+              <h1 className="text-2xl font-semibold text-neutral-900">Prompts</h1>
               {/* Add Custom Prompt */}
               <div className="flex gap-2 items-center">
                 <input
@@ -1461,7 +1460,7 @@ export default function DashboardPage() {
                                   />
                                 ) : null}
                                 <div 
-                                  className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-bold"
+                                  className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
                                   style={{ 
                                     backgroundColor: chartColors[idx % chartColors.length] || "#888",
                                     display: (competitor?.favicon || isYourBrand) ? 'none' : 'flex'
@@ -1570,7 +1569,8 @@ export default function DashboardPage() {
 
           {/* Sources View */}
           {selectedView === "sources" && (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto pt-6 space-y-6">
+              <h1 className="text-2xl font-semibold text-neutral-900">Sources</h1>
               <div className="space-y-2">
                 {topSources.length > 0 ? topSources.map((source, i) => (
                   <a
