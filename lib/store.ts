@@ -74,6 +74,61 @@ export interface Action {
   completed?: boolean;
 }
 
+// New claim-based content system with triangulation
+export type ClaimType = 'differentiator' | 'table_stakes' | 'disqualifier';
+
+export interface ContentRecommendation {
+  id: string;
+  missingClaim: string;
+  claimType: ClaimType;
+  // Causal evidence - the magic data
+  causalEvidence: {
+    promptPercentage: number;
+    highIntentPrompts: number;
+    totalPromptsAffected: number;
+    reinforcingSources: number;
+    sourceTypes: string[];
+    topCompetitor: string;
+    topCompetitorMentions: number;
+  };
+  evidenceSummary: string;
+  whyAISaysThis: string;
+  impactScore: number;
+  competitorMentions: { brand: string; count: number }[];
+  triangulation: {
+    prompts: string[];
+    sources: string[];
+  };
+  recommendedContent: {
+    type: 'blog' | 'page' | 'comparison' | 'case_study';
+    title: string;
+    outline: string[];
+    reason: string;
+    expectedImpact: string;
+  }[];
+  priority: 'critical' | 'high' | 'medium';
+  completed?: boolean;
+}
+
+export interface OutreachRecommendation {
+  id: string;
+  type: 'review_site' | 'publication' | 'directory' | 'community';
+  platform: string;
+  url?: string;
+  reason: string;
+  causalEvidence: {
+    citationCount: number;
+    promptsAffected: number;
+    competitorsPresent: number;
+    claimsReinforced: string[];
+  };
+  competitorPresence: string[];
+  priority: 'critical' | 'high' | 'medium';
+  actions: string[];
+  authorityScore: number;
+  completed?: boolean;
+}
+
 interface OnboardingState {
   // Step tracking
   currentStep: number;
@@ -106,7 +161,7 @@ interface OnboardingState {
   // Metrics
   metrics: VisibilityMetrics | null;
   
-  // Actions
+  // Actions (legacy)
   actions: Action[];
   actionsSummary: {
     totalActions: number;
@@ -116,6 +171,11 @@ interface OnboardingState {
     estimatedImpact: string;
     strategySummary: string;
   } | null;
+  
+  // Content Recommendations (claim-based)
+  contentRecommendations: ContentRecommendation[];
+  outreachRecommendations: OutreachRecommendation[];
+  isExtractingClaims: boolean;
   
   // Store Actions (methods)
   setStep: (step: number) => void;
@@ -137,6 +197,10 @@ interface OnboardingState {
   setMetrics: (metrics: VisibilityMetrics) => void;
   setActions: (actions: Action[], summary: any) => void;
   toggleActionComplete: (actionId: string) => void;
+  setContentRecommendations: (content: ContentRecommendation[], outreach: OutreachRecommendation[]) => void;
+  toggleContentComplete: (id: string) => void;
+  toggleOutreachComplete: (id: string) => void;
+  setIsExtractingClaims: (val: boolean) => void;
   reset: () => void;
 }
 
@@ -160,6 +224,9 @@ const initialState = {
   metrics: null,
   actions: [],
   actionsSummary: null,
+  contentRecommendations: [],
+  outreachRecommendations: [],
+  isExtractingClaims: false,
 };
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
@@ -222,6 +289,25 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
       a.id === actionId ? { ...a, completed: !a.completed } : a
     )
   })),
+  
+  setContentRecommendations: (content, outreach) => set({ 
+    contentRecommendations: content, 
+    outreachRecommendations: outreach 
+  }),
+  
+  toggleContentComplete: (id) => set((state) => ({
+    contentRecommendations: state.contentRecommendations.map(c =>
+      c.id === id ? { ...c, completed: !c.completed } : c
+    )
+  })),
+  
+  toggleOutreachComplete: (id) => set((state) => ({
+    outreachRecommendations: state.outreachRecommendations.map(o =>
+      o.id === id ? { ...o, completed: !o.completed } : o
+    )
+  })),
+  
+  setIsExtractingClaims: (val) => set({ isExtractingClaims: val }),
   
   reset: () => set(initialState),
 }));

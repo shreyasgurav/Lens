@@ -31,7 +31,9 @@ import {
   Bot,
   User,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Check,
+  Copy
 } from "lucide-react";
 import {
   LineChart,
@@ -55,13 +57,37 @@ interface ChatMessage {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { companyName, websiteUrl, metrics, competitors, simulationResults, topics, actions, actionsSummary, toggleActionComplete, setTopics, toggleTopic, addCompetitor, removeCompetitor } = useOnboardingStore();
+  const { 
+    companyName, 
+    websiteUrl, 
+    description,
+    metrics, 
+    competitors, 
+    simulationResults, 
+    topics, 
+    actions, 
+    actionsSummary, 
+    toggleActionComplete, 
+    setTopics, 
+    toggleTopic, 
+    addCompetitor, 
+    removeCompetitor,
+    contentRecommendations,
+    outreachRecommendations,
+    setContentRecommendations,
+    toggleContentComplete,
+    toggleOutreachComplete,
+    isExtractingClaims,
+    setIsExtractingClaims,
+  } = useOnboardingStore();
   const [selectedView, setSelectedView] = useState<string>("dashboard");
   const [visibleCompetitors, setVisibleCompetitors] = useState<Set<string>>(new Set());
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
   const [newTopic, setNewTopic] = useState("");
   const [newCompetitor, setNewCompetitor] = useState("");
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
+  const [expandedContent, setExpandedContent] = useState<string | null>(null);
+  const [expandedOutreach, setExpandedOutreach] = useState<string | null>(null);
   
   // Agent Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -87,6 +113,36 @@ export default function DashboardPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+
+  // Claims are now extracted automatically in StepAnalysis after simulations complete
+  // Manual refresh is still available via the Refresh button
+
+  const extractClaims = async () => {
+    if (isExtractingClaims || simulationResults.length === 0) return;
+    
+    setIsExtractingClaims(true);
+    try {
+      const response = await fetch('/api/extract-claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          simulationResults,
+          companyName,
+          competitors,
+          description,
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setContentRecommendations(data.contentRecommendations || [], data.outreachRecommendations || []);
+      }
+    } catch (error) {
+      console.error('Failed to extract claims:', error);
+    } finally {
+      setIsExtractingClaims(false);
+    }
+  };
 
   // Calculate competitor rankings with market share
   const competitorRankings = useMemo(() => {
@@ -556,38 +612,39 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Action */}
+          {/* Actions */}
           <div className="mb-6">
-            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 mb-2">Action</p>
-            <button
-              onClick={() => setSelectedView("actions")}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors ${
-                selectedView === "actions" 
-                  ? "text-neutral-900 font-medium" 
-                  : "text-neutral-600"
-              }`}
-              style={{
-                backgroundColor: selectedView === "actions" ? '#E5E5E5' : 'transparent'
-              }}
-              onMouseEnter={(e) => {
-                if (selectedView !== "actions") {
-                  e.currentTarget.style.backgroundColor = '#ECECEC';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedView !== "actions") {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <Zap className="w-4 h-4" />
-              Action Center
-              {actions.filter(a => a.priority === 'high').length > 0 && (
-                <span className="ml-auto w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {actions.filter(a => a.priority === 'high').length}
-                </span>
-              )}
-            </button>
+            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 mb-2">Actions</p>
+            {[
+              { id: "content", icon: BookOpen, label: "Content Ideas" },
+              { id: "outreach", icon: Send, label: "Outreach" },
+            ].map(item => (
+              <button
+                key={item.id}
+                onClick={() => setSelectedView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors mb-0.5 ${
+                  selectedView === item.id 
+                    ? "text-neutral-900 font-medium" 
+                    : "text-neutral-600"
+                }`}
+                style={{
+                  backgroundColor: selectedView === item.id ? '#E5E5E5' : 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedView !== item.id) {
+                    e.currentTarget.style.backgroundColor = '#ECECEC';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedView !== item.id) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+              >
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </button>
+            ))}
           </div>
         </nav>
 
@@ -603,9 +660,6 @@ export default function DashboardPage() {
         </div>
       </aside>
       <main className="flex-1 ml-56">
-        {/* Header Spacer - keeps same spacing without visible header */}
-        <div className="h-16"></div>
-
         <div className="p-6">
           {/* Dashboard View */}
           {selectedView === "dashboard" && (
@@ -1035,344 +1089,296 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Actions View */}
-          {selectedView === "actions" && (
-            <div className="space-y-6">
-              {/* Header with Summary */}
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-900">Action Center</h2>
-                {actionsSummary && (
-                  <p className="text-sm text-neutral-600 mt-2 leading-relaxed">
-                    {actionsSummary.strategySummary}
-                  </p>
+          {/* Content Ideas View - Split Layout */}
+          {selectedView === "content" && (
+            <div className="fixed inset-0 left-56 flex">
+              {/* Left Sidebar - Content Topics List */}
+              <div className="w-80 border-r border-neutral-200 flex flex-col">
+                <div className="p-4 border-b border-neutral-200">
+                  <h2 className="font-semibold text-neutral-900">Content Ideas</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">Select a topic to view details</p>
+                </div>
+                
+                {isExtractingClaims && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-3 border-neutral-200 border-t-neutral-900 rounded-full animate-spin mx-auto mb-2" />
+                      <p className="text-xs text-neutral-500">Generating ideas...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {!isExtractingClaims && contentRecommendations.length > 0 && (
+                  <div className="flex-1 overflow-y-auto">
+                    {contentRecommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        onClick={() => setExpandedContent(rec.id)}
+                        className={`p-3 border-b border-neutral-100 cursor-pointer transition-colors ${
+                          expandedContent === rec.id ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                        } ${rec.completed ? 'opacity-50' : ''}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-neutral-900 truncate">
+                              {rec.recommendedContent?.[0]?.title || rec.missingClaim}
+                            </p>
+                            <p className="text-xs text-neutral-500 mt-0.5 truncate">
+                              {rec.recommendedContent?.[0]?.type === 'blog' ? 'Blog Post' : 
+                               rec.recommendedContent?.[0]?.type === 'comparison' ? 'Comparison' : 'Page'}
+                            </p>
+                          </div>
+                          {rec.completed && (
+                            <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {!isExtractingClaims && contentRecommendations.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center p-4">
+                    <div className="text-center">
+                      <BookOpen className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                      <p className="text-xs text-neutral-500">No content ideas yet</p>
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {/* Actions List */}
-              {actions.length === 0 ? (
-                <div className="bg-white border border-neutral-200 rounded-xl p-12 text-center">
-                  <Zap className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-                  <p className="text-neutral-500">Run a simulation to get personalized action recommendations</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* High Priority */}
-                  {actions.filter(a => a.priority === 'high').length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-red-600 uppercase tracking-wider mb-3">Priority Actions</h3>
-                      {actions.filter(a => a.priority === 'high').map(action => (
-                        <div 
-                          key={action.id} 
-                          onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
-                          className="border-b border-neutral-200 pb-4 mb-3 cursor-pointer"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 uppercase">
-                                  {action.category.replace('_', ' ')}
-                                </span>
-                              </div>
-                              <h4 className="font-semibold text-neutral-900 mb-2">{action.title}</h4>
-                              <p className="text-sm text-neutral-600 leading-relaxed">{action.description}</p>
-                              {action.insight && (
-                                <p className="text-sm text-neutral-500 mt-2 italic">{action.insight}</p>
-                              )}
-                            </div>
-                            <input
-                              type="checkbox"
-                              checked={action.completed || false}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                toggleActionComplete(action.id);
-                              }}
-                              className="w-5 h-5 rounded border-neutral-300 text-neutral-900 focus:ring-2 focus:ring-neutral-900 cursor-pointer flex-shrink-0"
-                            />
+              
+              {/* Right Panel - Content Details */}
+              <div className="flex-1 flex flex-col bg-white">
+                {expandedContent && contentRecommendations.find(r => r.id === expandedContent) ? (
+                  (() => {
+                    const selectedContent = contentRecommendations.find(r => r.id === expandedContent)!;
+                    const content = selectedContent.recommendedContent?.[0];
+                    return (
+                      <>
+                        {/* Actions Bar */}
+                        <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors">
+                              <Copy className="w-4 h-4" />
+                              Copy
+                            </button>
                           </div>
-
-                          {/* Expanded Details */}
-                          {expandedAction === action.id && (
-                            <div className="space-y-5 border-t border-neutral-200 pt-5 mt-4">
-                              {/* Why This Matters */}
-                              <div>
-                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Why This Matters</p>
-                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                                  <p className="text-sm text-amber-900 leading-relaxed">{action.reason}</p>
-                                </div>
+                          <button
+                            onClick={() => toggleContentComplete(selectedContent.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                              selectedContent.completed 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-neutral-900 text-white hover:bg-neutral-800'
+                            }`}
+                          >
+                            <Check className="w-4 h-4" />
+                            {selectedContent.completed ? 'Completed' : 'Mark Complete'}
+                          </button>
+                        </div>
+                        
+                        {/* Content Body */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                          <div className="max-w-2xl">
+                            <h1 className="text-2xl font-bold text-neutral-900 mb-6">
+                              {content?.title || selectedContent.missingClaim}
+                            </h1>
+                            
+                            {content?.outline?.map((section, i) => (
+                              <div key={i} className="mb-6">
+                                <h2 className="text-lg font-semibold text-neutral-900 mb-2">
+                                  {section}
+                                </h2>
+                                <p className="text-neutral-600 leading-relaxed">
+                                  {i === 0 && `This section should cover the key aspects of ${selectedContent.missingClaim}. Explain why this matters for your target audience and how ${companyName} addresses this need.`}
+                                  {i === 1 && `Dive deeper into the specifics. Provide examples, data points, or case studies that demonstrate your expertise in this area.`}
+                                  {i === 2 && `Compare different approaches and highlight what makes your solution unique. Address common concerns your audience might have.`}
+                                  {i > 2 && `Continue building your argument with supporting evidence and practical insights that establish authority.`}
+                                </p>
                               </div>
-
-                              {/* Content to Create */}
-                              {action.contentSuggestions && action.contentSuggestions.length > 0 && (
-                                <div>
-                                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">📝 Content to Create</p>
-                                  <div className="space-y-3">
-                                    {action.contentSuggestions.map((content, idx) => (
-                                      <div key={idx} className="bg-white border-2 border-neutral-200 rounded-lg p-4 hover:border-neutral-900 transition-colors">
-                                        <div className="flex items-start gap-3 mb-3">
-                                          <span className="px-2 py-1 bg-neutral-900 text-white text-[10px] font-semibold rounded uppercase">
-                                            {content.type.replace('_', ' ')}
-                                          </span>
-                                          <h5 className="font-semibold text-neutral-900 flex-1 leading-snug">{content.title}</h5>
-                                        </div>
-                                        
-                                        {content.outline && content.outline.length > 0 && (
-                                          <div className="mb-3">
-                                            <p className="text-xs font-medium text-neutral-500 mb-2">Outline:</p>
-                                            <ol className="space-y-1.5">
-                                              {content.outline.map((section, i) => (
-                                                <li key={i} className="text-xs text-neutral-700 flex items-start gap-2">
-                                                  <span className="text-neutral-400 font-medium">{i + 1}.</span>
-                                                  <span>{section}</span>
-                                                </li>
-                                              ))}
-                                            </ol>
-                                          </div>
-                                        )}
-                                        
-                                        {content.url && (
-                                          <div className="mb-3">
-                                            <a 
-                                              href={content.url} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                                            >
-                                              <ExternalLink className="w-3 h-3" />
-                                              {content.url}
-                                            </a>
-                                          </div>
-                                        )}
-                                        
-                                        <div className="pt-3 border-t border-neutral-200">
-                                          <p className="text-xs text-neutral-600 italic">{content.reason}</p>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Evidence */}
-                              <div>
-                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Evidence from Simulations</p>
-                                <div className="bg-neutral-50 p-4 rounded-lg space-y-3 text-sm">
-                                  {action.evidence.stat && (
-                                    <div className="flex items-start gap-2">
-                                      <BarChart3 className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <span className="font-medium text-neutral-900">{action.evidence.stat}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {action.evidence.competitors && action.evidence.competitors.length > 0 && (
-                                    <div className="flex items-start gap-2">
-                                      <Users className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <span className="text-neutral-600">Competitors dominating: </span>
-                                        <span className="font-medium text-neutral-900">{action.evidence.competitors.join(', ')}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {action.evidence.prompts && action.evidence.prompts.length > 0 && (
-                                    <div className="flex items-start gap-2">
-                                      <MessageSquare className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <span className="text-neutral-600">Prompts where you're missing:</span>
-                                        <div className="space-y-1 mt-2">
-                                          {action.evidence.prompts.slice(0, 3).map((q, i) => (
-                                            <div key={i} className="text-xs bg-white px-2 py-1.5 rounded border border-neutral-200 text-neutral-700">"{q}"</div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {action.evidence.sources && action.evidence.sources.length > 0 && (
-                                    <div className="flex items-start gap-2">
-                                      <ExternalLink className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <span className="text-neutral-600">Authority sources citing competitors: </span>
-                                        <span className="font-medium text-neutral-900">{action.evidence.sources.join(', ')}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
+                            ))}
+                            
+                            {!content?.outline?.length && (
+                              <div className="text-neutral-600 leading-relaxed">
+                                <p className="mb-4">
+                                  Create content that establishes {companyName}'s expertise in "{selectedContent.missingClaim}".
+                                </p>
+                                <p>
+                                  This is a key differentiator that competitors are being recognized for. Building authoritative content around this topic will help improve AI visibility.
+                                </p>
                               </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <BookOpen className="w-12 h-12 text-neutral-200 mx-auto mb-3" />
+                      <p className="text-neutral-500">Select a content idea to view details</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-                              {/* Steps */}
-                              <div>
-                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Action Steps</p>
-                                <ol className="space-y-3">
-                                  {action.steps.map((step, i) => (
-                                    <li key={i} className="flex items-start gap-3 text-sm">
-                                      <span className="w-6 h-6 bg-neutral-900 text-white rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                                        {i + 1}
-                                      </span>
-                                      <span className="text-neutral-700 pt-0.5 leading-relaxed">{step}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-                            </div>
+          {/* Outreach View - Split Layout */}
+          {selectedView === "outreach" && (
+            <div className="fixed inset-0 left-56 flex">
+              {/* Left Sidebar - Sources List */}
+              <div className="w-80 border-r border-neutral-200 flex flex-col">
+                <div className="p-4 border-b border-neutral-200">
+                  <h2 className="font-semibold text-neutral-900">Email Outreach</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">Select a source to view email</p>
+                </div>
+                
+                {isExtractingClaims && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-3 border-neutral-200 border-t-neutral-900 rounded-full animate-spin mx-auto mb-2" />
+                      <p className="text-xs text-neutral-500">Finding sources...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {!isExtractingClaims && outreachRecommendations.length > 0 && (
+                  <div className="flex-1 overflow-y-auto">
+                    {outreachRecommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        onClick={() => setExpandedOutreach(rec.id)}
+                        className={`p-3 border-b border-neutral-100 cursor-pointer transition-colors ${
+                          expandedOutreach === rec.id ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                        } ${rec.completed ? 'opacity-50' : ''}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${
+                            rec.type === 'review_site' ? 'bg-green-500' :
+                            rec.type === 'publication' ? 'bg-blue-500' :
+                            rec.type === 'directory' ? 'bg-purple-500' :
+                            'bg-orange-500'
+                          }`}>
+                            {rec.platform?.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-neutral-900 truncate">
+                              {rec.platform}
+                            </p>
+                            <p className="text-xs text-neutral-500">
+                              contact@{rec.platform?.toLowerCase().replace(/\s+/g, '')}.com
+                            </p>
+                          </div>
+                          {rec.completed && (
+                            <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                           )}
                         </div>
-                      ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {!isExtractingClaims && outreachRecommendations.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center p-4">
+                    <div className="text-center">
+                      <Send className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                      <p className="text-xs text-neutral-500">No sources found yet</p>
                     </div>
-                  )}
-
-                  {/* Medium Priority */}
-                  {actions.filter(a => a.priority === 'medium').length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-3 mt-6">Additional Actions</h3>
-                      {actions.filter(a => a.priority === 'medium').map(action => (
-                        <div 
-                          key={action.id} 
-                          onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
-                          className="border-b border-neutral-200 pb-4 mb-3 cursor-pointer"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 uppercase">
-                                  {action.category.replace('_', ' ')}
-                                </span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Right Panel - Email Preview */}
+              <div className="flex-1 flex flex-col bg-white">
+                {expandedOutreach && outreachRecommendations.find(r => r.id === expandedOutreach) ? (
+                  (() => {
+                    const selectedOutreach = outreachRecommendations.find(r => r.id === expandedOutreach)!;
+                    return (
+                      <>
+                        {/* Email Form */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                          <div className="max-w-xl space-y-4">
+                            {/* Recipient */}
+                            <div>
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">Recipient</label>
+                              <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
+                                contact@{selectedOutreach.platform?.toLowerCase().replace(/\s+/g, '')}.com
                               </div>
-                              <h4 className="font-semibold text-neutral-900 mb-2">{action.title}</h4>
-                              <p className="text-sm text-neutral-600 leading-relaxed">{action.description}</p>
-                              {action.insight && (
-                                <p className="text-sm text-neutral-500 mt-2 italic">{action.insight}</p>
-                              )}
                             </div>
-                            <input
-                              type="checkbox"
-                              checked={action.completed || false}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                toggleActionComplete(action.id);
-                              }}
-                              className="w-5 h-5 rounded border-neutral-300 text-neutral-900 focus:ring-2 focus:ring-neutral-900 cursor-pointer flex-shrink-0"
-                            />
+                            
+                            {/* Subject */}
+                            <div>
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">Subject Line</label>
+                              <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
+                                Partnership inquiry from {companyName}
+                              </div>
+                            </div>
+                            
+                            {/* Email Body */}
+                            <div>
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">Email Body</label>
+                              <div className="px-3 py-3 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-700 leading-relaxed">
+                                <p className="mb-3">Hey there,</p>
+                                <p className="mb-3">
+                                  I'm reaching out from {companyName}. I noticed your platform covers {selectedOutreach.type?.replace('_', ' ')} in our industry, and I'd love to explore how we could work together.
+                                </p>
+                                <p className="mb-3">
+                                  {selectedOutreach.reason}
+                                </p>
+                                <p className="mb-3">
+                                  Would you be open to a quick chat to discuss how {companyName} could be featured on {selectedOutreach.platform}?
+                                </p>
+                                <p className="mb-3">Best,</p>
+                                <p>Your Name</p>
+                              </div>
+                            </div>
                           </div>
-
-                          {expandedAction === action.id && (
-                            <div className="space-y-5 border-t border-neutral-200 pt-5 mt-4">
-                              {/* Why This Matters */}
-                              <div>
-                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Why This Matters</p>
-                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                                  <p className="text-sm text-amber-900 leading-relaxed">{action.reason}</p>
-                                </div>
-                              </div>
-
-                              {/* Content to Create */}
-                              {action.contentSuggestions && action.contentSuggestions.length > 0 && (
-                                <div>
-                                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">📝 Content to Create</p>
-                                  <div className="space-y-3">
-                                    {action.contentSuggestions.map((content, idx) => (
-                                      <div key={idx} className="bg-white border-2 border-neutral-200 rounded-lg p-4 hover:border-neutral-900 transition-colors">
-                                        <div className="flex items-start gap-3 mb-3">
-                                          <span className="px-2 py-1 bg-neutral-900 text-white text-[10px] font-semibold rounded uppercase">
-                                            {content.type.replace('_', ' ')}
-                                          </span>
-                                          <h5 className="font-semibold text-neutral-900 flex-1 leading-snug">{content.title}</h5>
-                                        </div>
-                                        
-                                        {content.outline && content.outline.length > 0 && (
-                                          <div className="mb-3">
-                                            <p className="text-xs font-medium text-neutral-500 mb-2">Outline:</p>
-                                            <ol className="space-y-1.5">
-                                              {content.outline.map((section, i) => (
-                                                <li key={i} className="text-xs text-neutral-700 flex items-start gap-2">
-                                                  <span className="text-neutral-400 font-medium">{i + 1}.</span>
-                                                  <span>{section}</span>
-                                                </li>
-                                              ))}
-                                            </ol>
-                                          </div>
-                                        )}
-                                        
-                                        {content.url && (
-                                          <div className="mb-3">
-                                            <a 
-                                              href={content.url} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                                            >
-                                              <ExternalLink className="w-3 h-3" />
-                                              {content.url}
-                                            </a>
-                                          </div>
-                                        )}
-                                        
-                                        <div className="pt-3 border-t border-neutral-200">
-                                          <p className="text-xs text-neutral-600 italic">{content.reason}</p>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Evidence */}
-                              {(action.evidence.stat || action.evidence.competitors?.length || action.evidence.prompts?.length) && (
-                                <div>
-                                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Evidence from Simulations</p>
-                                  <div className="bg-neutral-50 p-4 rounded-lg space-y-3 text-sm">
-                                    {action.evidence.stat && (
-                                      <div className="flex items-start gap-2">
-                                        <BarChart3 className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                        <span className="font-medium text-neutral-900">{action.evidence.stat}</span>
-                                      </div>
-                                    )}
-                                    {action.evidence.competitors && action.evidence.competitors.length > 0 && (
-                                      <div className="flex items-start gap-2">
-                                        <Users className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                        <div>
-                                          <span className="text-neutral-600">Competitors: </span>
-                                          <span className="font-medium text-neutral-900">{action.evidence.competitors.join(', ')}</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {action.evidence.prompts && action.evidence.prompts.length > 0 && (
-                                      <div className="flex items-start gap-2">
-                                        <MessageSquare className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
-                                        <div>
-                                          <span className="text-neutral-600">Related prompts:</span>
-                                          <div className="space-y-1 mt-2">
-                                            {action.evidence.prompts.slice(0, 3).map((q, i) => (
-                                              <div key={i} className="text-xs bg-white px-2 py-1.5 rounded border border-neutral-200 text-neutral-700">"{q}"</div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Steps */}
-                              <div>
-                                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Action Steps</p>
-                                <ol className="space-y-3">
-                                  {action.steps.map((step, i) => (
-                                    <li key={i} className="flex items-start gap-3 text-sm">
-                                      <span className="w-6 h-6 bg-neutral-900 text-white rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                                        {i + 1}
-                                      </span>
-                                      <span className="text-neutral-700 pt-0.5 leading-relaxed">{step}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-                            </div>
-                          )}
                         </div>
-                      ))}
+                        
+                        {/* Actions Bar */}
+                        <div className="p-4 border-t border-neutral-200 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg border border-neutral-200 transition-colors">
+                              <Copy className="w-4 h-4" />
+                              Copy
+                            </button>
+                            {selectedOutreach.url && (
+                              <a
+                                href={selectedOutreach.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg border border-neutral-200 transition-colors"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                                Visit Site
+                              </a>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => toggleOutreachComplete(selectedOutreach.id)}
+                            className={`flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-lg transition-colors ${
+                              selectedOutreach.completed 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-neutral-900 text-white hover:bg-neutral-800'
+                            }`}
+                          >
+                            <Check className="w-4 h-4" />
+                            {selectedOutreach.completed ? 'Completed' : 'Mark as Completed'}
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <Send className="w-12 h-12 text-neutral-200 mx-auto mb-3" />
+                      <p className="text-neutral-500">Select a source to view email template</p>
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

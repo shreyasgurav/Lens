@@ -147,6 +147,33 @@ export default function StepAnalysis() {
       console.error("Failed to generate actions:", error);
     }
     
+    // Extract claims for Content Ideas and Outreach
+    try {
+      console.log('Extracting claims for content and outreach...');
+      const claimsResponse = await fetch('/api/extract-claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          simulationResults: allResults,
+          companyName,
+          competitors,
+          description,
+        }),
+      });
+      
+      const claimsData = await claimsResponse.json();
+      if (claimsData.success) {
+        useOnboardingStore.getState().setContentRecommendations(
+          claimsData.contentRecommendations || [], 
+          claimsData.outreachRecommendations || []
+        );
+        console.log('Generated content recommendations:', claimsData.contentRecommendations?.length || 0);
+        console.log('Generated outreach recommendations:', claimsData.outreachRecommendations?.length || 0);
+      }
+    } catch (error) {
+      console.error("Failed to extract claims:", error);
+    }
+    
     setIsSimulating(false);
     completeStep(5);
   };
