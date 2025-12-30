@@ -118,6 +118,7 @@ export interface OutreachRecommendation {
   type: 'review_site' | 'publication' | 'directory' | 'community';
   platform: string;
   url?: string;
+  contactEmail?: string;
   reason: string;
   causalEvidence: {
     citationCount: number;

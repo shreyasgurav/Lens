@@ -76,6 +76,7 @@ interface OutreachRecommendation {
   type: 'review_site' | 'publication' | 'directory' | 'community';
   platform: string;
   url: string;
+  contactEmail?: string;
   reason: string;
   causalEvidence: { simulationsAppeared: number; competitorsPresent: string[]; claimsReinforced: string[]; };
   confidence: ConfidenceScore;
@@ -296,6 +297,7 @@ export async function POST(request: NextRequest) {
           type: source.type as any,
           platform: source.domain,
           url: `https://${source.domain}`,
+          contactEmail: generateContactEmail(source.domain, source.type),
           reason: `Cited ${source.sims.size}× across simulations. ${Array.from(source.comps).slice(0, 2).join(', ')} are present here.`,
           causalEvidence: { simulationsAppeared: source.sims.size, competitorsPresent: Array.from(source.comps), claimsReinforced: [] },
           confidence: conf,
@@ -390,6 +392,28 @@ function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: 
   content.push({ type: 'blog', title: `How ${brand} Delivers ${label}`, outline: [`Why ${claim.label} matters`, `${brand}'s approach`, 'Real examples', 'Getting started'], reason: 'Reinforce missing claim with authoritative content' });
   
   return content;
+}
+
+function generateContactEmail(domain: string, type: string): string {
+  // Common contact patterns for different source types
+  const baseDomain = domain.replace(/^www\./, '');
+  
+  if (type === 'review_site') {
+    // Review sites often have partnerships/business emails
+    return `partnerships@${baseDomain}`;
+  } else if (type === 'publication') {
+    // Publications typically use editorial/tips emails
+    return `editorial@${baseDomain}`;
+  } else if (type === 'directory') {
+    // Directories use submissions/listings emails
+    return `submit@${baseDomain}`;
+  } else if (type === 'community') {
+    // Communities use hello/contact
+    return `hello@${baseDomain}`;
+  }
+  
+  // Default fallback
+  return `contact@${baseDomain}`;
 }
 
 function generateActions(type: string, domain: string, brand: string): string[] {

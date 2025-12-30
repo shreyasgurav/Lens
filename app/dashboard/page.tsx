@@ -1256,20 +1256,12 @@ export default function DashboardPage() {
                         } ${rec.completed ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
-                            rec.type === 'review_site' ? 'bg-green-500' :
-                            rec.type === 'publication' ? 'bg-blue-500' :
-                            rec.type === 'directory' ? 'bg-purple-500' :
-                            'bg-orange-500'
-                          }`}>
-                            {rec.platform?.charAt(0).toUpperCase()}
-                          </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-neutral-900">
                               {rec.platform}
                             </p>
                             <p className="text-xs text-neutral-500">
-                              contact@{rec.platform?.toLowerCase().replace(/\s+/g, '')}.com
+                              {rec.contactEmail || `contact@${rec.platform?.toLowerCase().replace(/\s+/g, '')}`}
                             </p>
                           </div>
                           {rec.completed && (
