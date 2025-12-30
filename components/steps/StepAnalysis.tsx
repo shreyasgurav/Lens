@@ -26,6 +26,7 @@ export default function StepAnalysis() {
   const [currentQuery, setCurrentQuery] = useState("");
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<'simulating' | 'generating_content' | 'done'>('simulating');
 
   const analysisMessages = [
     "Analyzing your positioning",
@@ -33,17 +34,25 @@ export default function StepAnalysis() {
     "Evaluating topic coverage",
     "Calculating visibility metrics",
   ];
+  
+  const contentGenerationMessages = [
+    "Generating content ideas",
+    "Finding outreach opportunities",
+    "Analyzing competitor insights",
+    "Building recommendations",
+  ];
 
   // Cycle through messages independently
   useEffect(() => {
     if (!isSimulating) return;
     
+    const messages = currentPhase === 'simulating' ? analysisMessages : contentGenerationMessages;
     const messageInterval = setInterval(() => {
-      setCurrentMessageIndex((prev) => (prev + 1) % analysisMessages.length);
+      setCurrentMessageIndex((prev) => (prev + 1) % messages.length);
     }, 3000); // Change message every 3 seconds
 
     return () => clearInterval(messageInterval);
-  }, [isSimulating, analysisMessages.length]);
+  }, [isSimulating, currentPhase]);
 
   const selectedTopics = topics.filter((t) => t.selected);
 
@@ -67,6 +76,7 @@ export default function StepAnalysis() {
     setIsSimulating(true);
     setProgress(0);
     setCurrentMessageIndex(0);
+    setCurrentPhase('simulating');
 
     // Track completed simulations for progress
     let completedCount = 0;
@@ -125,6 +135,11 @@ export default function StepAnalysis() {
     setSimulationResults(allResults);
     calculateMetrics(allResults);
     
+    // Switch to content generation phase
+    setCurrentPhase('generating_content');
+    setProgress(0);
+    setCurrentMessageIndex(0);
+    
     // Generate actions based on simulation results
     try {
       const actionsResponse = await fetch("/api/generate-actions", {
@@ -150,6 +165,7 @@ export default function StepAnalysis() {
     // Extract claims for Content Ideas and Outreach
     try {
       console.log('Extracting claims for content and outreach...');
+      setProgress(50);
       const claimsResponse = await fetch('/api/extract-claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,6 +178,7 @@ export default function StepAnalysis() {
       });
       
       const claimsData = await claimsResponse.json();
+      setProgress(100);
       if (claimsData.success) {
         useOnboardingStore.getState().setContentRecommendations(
           claimsData.contentRecommendations || [], 
@@ -169,11 +186,14 @@ export default function StepAnalysis() {
         );
         console.log('Generated content recommendations:', claimsData.contentRecommendations?.length || 0);
         console.log('Generated outreach recommendations:', claimsData.outreachRecommendations?.length || 0);
+      } else {
+        console.error('Extract claims failed:', claimsData);
       }
     } catch (error) {
       console.error("Failed to extract claims:", error);
     }
     
+    setCurrentPhase('done');
     setIsSimulating(false);
     completeStep(5);
   };
@@ -210,7 +230,8 @@ export default function StepAnalysis() {
   const visibilityPercent = simulationResults.length > 0 ? (mentionedCount / simulationResults.length) * 100 : 0;
 
   if (isSimulating) {
-    const currentMessage = analysisMessages[currentMessageIndex];
+    const messages = currentPhase === 'simulating' ? analysisMessages : contentGenerationMessages;
+    const currentMessage = messages[currentMessageIndex];
     return (
       <div className="space-y-8">
         <TypingAnimation text={currentMessage} />
@@ -266,15 +287,32 @@ export default function StepAnalysis() {
                   className="w-full flex items-start gap-3 text-left"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-neutral-900">{result.query}</p>
+                    <div className="flex items-start gap-2">
+                      <p className="text-sm text-neutral-900 flex-1">{result.query}</p>
+                      {result.lowConfidence && (
+                        <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full flex-shrink-0" title={result.confidenceReason}>
+                          Low confidence
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-1.5">
                       <p className="text-xs text-neutral-400">
-                        {result.yourBrandMentioned ? `Position #${result.yourBrandPosition}` : "Not mentioned"}
+                        {result.yourBrandMentioned ? (
+                          result.yourBrandPosition ? `Ranked #${result.yourBrandPosition}` : "Mentioned (unranked)"
+                        ) : "Not mentioned"}
                       </p>
                       <span className="text-xs text-neutral-300">•</span>
                       <p className="text-xs text-neutral-400">
                         {result.mentionedBrands.length} brand{result.mentionedBrands.length !== 1 ? 's' : ''}
                       </p>
+                      {!result.lowConfidence && result.sources && result.sources.length > 0 && (
+                        <>
+                          <span className="text-xs text-neutral-300">•</span>
+                          <p className="text-xs text-neutral-400">
+                            {result.sources.length} source{result.sources.length !== 1 ? 's' : ''}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                   {expandedSource === i ? (
@@ -304,12 +342,27 @@ export default function StepAnalysis() {
                               className={`px-2.5 py-1 rounded-full text-xs ${
                                 brand.name.toLowerCase() === companyName.toLowerCase()
                                   ? "bg-neutral-900 text-white"
-                                  : "bg-neutral-100 text-neutral-700"
+                                  : brand.ranked
+                                  ? "bg-neutral-100 text-neutral-700 border border-neutral-300"
+                                  : "bg-neutral-50 text-neutral-500"
                               }`}
                             >
-                              #{brand.position} {brand.name}
+                              {brand.position ? `#${brand.position}` : "~"} {brand.name}
                             </div>
                           ))}
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-2">
+                          Solid border = ranked recommendation • Faded = mentioned only
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Low Confidence Warning */}
+                    {result.lowConfidence && (
+                      <div className="pt-2 border-t border-neutral-100">
+                        <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-xs font-medium text-amber-900 mb-1">⚠️ Low Confidence Result</p>
+                          <p className="text-xs text-amber-700">{result.confidenceReason}</p>
                         </div>
                       </div>
                     )}
@@ -317,7 +370,7 @@ export default function StepAnalysis() {
                     {/* Source Links */}
                     {result.sources && result.sources.length > 0 && (
                       <div className="pt-2 border-t border-neutral-100">
-                        <p className="text-xs font-medium text-neutral-500 mb-2">Sources</p>
+                        <p className="text-xs font-medium text-neutral-500 mb-2">Web Sources (cited by AI)</p>
                         <div className="space-y-2">
                           {result.sources.map((source: any, sidx: number) => (
                             <a

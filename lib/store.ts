@@ -18,8 +18,9 @@ export interface SimulationResult {
   response: string;
   mentionedBrands: {
     name: string;
-    position: number;
+    position: number | null;
     sentiment: 'positive' | 'neutral' | 'negative';
+    ranked?: boolean;
   }[];
   yourBrandMentioned: boolean;
   yourBrandPosition: number | null;
@@ -33,6 +34,8 @@ export interface SimulationResult {
     contentType: 'comparison' | 'review' | 'list' | 'tutorial' | 'general';
     prominence: 'high' | 'medium' | 'low';
   }[];
+  lowConfidence?: boolean;
+  confidenceReason?: string;
 }
 
 export interface VisibilityMetrics {

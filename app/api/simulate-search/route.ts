@@ -10,9 +10,16 @@ interface SimulationResult {
   response: string;
   brands: {
     name: string;
-    position: number;
+    position: number | null;
     sentiment: string;
+    ranked: boolean;
   }[];
+  sources?: {
+    url: string;
+    title: string;
+  }[];
+  lowConfidence?: boolean;
+  confidenceReason?: string;
 }
 
 interface BrandSourceMapping {
@@ -76,31 +83,88 @@ Examples:
 
     const query = queryGeneration.choices[0]?.message?.content?.trim() || topic;
 
-    // Simulate the AI response using GPT-4o (Most reliable for simulation)
-    const responseCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are ChatGPT, a helpful AI assistant answering questions about software and tools.
+    // Use Responses API with web_search_preview tool for real web search
+    let responseCompletion;
+    try {
+      responseCompletion = await openai.responses.create({
+        model: "gpt-5",
+        reasoning: { effort: "low" },
+        tools: [
+          { 
+            type: "web_search_preview" as any
+          }
+        ],
+        input: query,
+      } as any);
+    } catch (error) {
+      console.error('Web search failed, falling back to standard completion:', error);
+      // Fallback to standard GPT-5 if web search fails
+      const fallbackCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are ChatGPT answering questions about software and tools. Provide helpful recommendations with 3-5 specific tools/products by name. Format as a conversational response with clear recommendations.`
+          },
+          { role: "user", content: query }
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+      });
+      
+      const fallbackResponse = fallbackCompletion.choices[0]?.message?.content?.trim() || "";
+      
+      return NextResponse.json({
+        success: true,
+        results: [{
+          query,
+          response: fallbackResponse,
+          mentionedBrands: [],
+          yourBrandMentioned: false,
+          yourBrandPosition: null,
+          sources: [],
+          brandSourceMappings: [],
+          lowConfidence: true,
+          confidenceReason: "Web search unavailable - using standard AI response"
+        }]
+      });
+    }
 
-IMPORTANT RULES:
-- Provide helpful recommendations with 3-5 specific tools/products by name
-- Always mention real products that exist in the market
-- Be specific about what each product does and its key features
-- Format as a conversational response, NOT a numbered list
-- Include both well-known and emerging tools in the space`,
-        },
-        {
-          role: "user",
-          content: query,
-        },
-      ],
-      max_tokens: 500,
-      temperature: 0.7,
-    });
-
-    const response = responseCompletion.choices[0]?.message?.content?.trim() || "";
+    const response = responseCompletion.output_text || "";
+    
+    // Extract sources from web search results
+    const webSearchSources: { url: string; title: string }[] = [];
+    
+    if (responseCompletion.output && Array.isArray(responseCompletion.output)) {
+      for (const item of responseCompletion.output) {
+        // Find web_search_call items with sources
+        if (item.type === 'web_search_call' && (item as any).action?.sources) {
+          for (const source of (item as any).action.sources) {
+            if (source.url && source.title) {
+              webSearchSources.push({
+                url: source.url,
+                title: source.title
+              });
+            }
+          }
+        }
+        // Also extract from message annotations
+        if (item.type === 'message' && item.content) {
+          for (const content of item.content) {
+            if ((content as any).annotations) {
+              for (const annotation of (content as any).annotations) {
+                if (annotation.type === 'url_citation' && annotation.url && annotation.title) {
+                  webSearchSources.push({
+                    url: annotation.url,
+                    title: annotation.title
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     
     // Log for debugging
     console.log('GPT-4o Response:', {
@@ -114,75 +178,79 @@ IMPORTANT RULES:
       console.error('Empty response from GPT-5.2');
     }
 
-    // Generate realistic sources using actual working URLs
-    // Extract category/keywords from query for better source matching
-    const queryLower = query.toLowerCase();
+    // Use ONLY real sources from web search - never fake them
+    const sources = webSearchSources.length > 0 ? webSearchSources : [];
+    const lowConfidence = sources.length === 0;
+    const confidenceReason = lowConfidence ? "AI response not grounded in explicit web citations" : undefined;
     
-    // Define real, working source URLs by category
-    const sourceTemplates = [
-      // Review sites
-      { title: "Software Reviews & Ratings - G2", url: "https://www.g2.com" },
-      { title: "Software Reviews - Capterra", url: "https://www.capterra.com" },
-      { title: "Business Software Reviews - TrustRadius", url: "https://www.trustradius.com" },
-      { title: "Software Advice & Reviews", url: "https://www.softwareadvice.com" },
-      
-      // Tech news
-      { title: "Tech News & Startup Coverage - TechCrunch", url: "https://techcrunch.com" },
-      { title: "Technology News - The Verge", url: "https://www.theverge.com" },
-      { title: "Tech Industry News - VentureBeat", url: "https://venturebeat.com" },
-      { title: "Product Launches - Product Hunt", url: "https://www.producthunt.com" },
-      
-      // Business publications
-      { title: "Business & Technology - Forbes", url: "https://www.forbes.com/technology" },
-      { title: "Business Innovation - Fast Company", url: "https://www.fastcompany.com" },
-      { title: "Startup & Business News - Inc.", url: "https://www.inc.com" },
-      
-      // Developer/Tech communities
-      { title: "Developer Community - Dev.to", url: "https://dev.to" },
-      { title: "Tech Discussions - Hacker News", url: "https://news.ycombinator.com" },
-      { title: "Developer Q&A - Stack Overflow", url: "https://stackoverflow.com" },
-      
-      // General knowledge
-      { title: "Wikipedia", url: "https://en.wikipedia.org" },
-      { title: "Technology Insights - Medium", url: "https://medium.com/tag/technology" },
-    ];
-    
-    // Randomly select 3-4 diverse sources
-    const shuffled = sourceTemplates.sort(() => 0.5 - Math.random());
-    const sources = shuffled.slice(0, 3 + Math.floor(Math.random() * 2));
+    console.log('Web search sources found:', sources.length, sources.map(s => s.url));
+    if (lowConfidence) {
+      console.log('⚠️ Low confidence simulation - no web sources found');
+    }
 
-    // Extract ALL brand mentions from the response (not just known ones)
+    // Extract brands WITH RANKING from structured response
     const brandExtraction = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: `Extract all product/company names mentioned in the text. Return ONLY a JSON array of brand names.
-Example: ["Notion", "Asana", "Monday.com"]`,
+          content: `Extract all product/company names from the text IN THE ORDER they are recommended.
+
+Look for:
+- Numbered lists (1., 2., 3.)
+- Bullet points with clear ordering
+- Phrases like "Top picks", "Best options", "I recommend"
+- First mentioned = higher priority
+
+Return JSON:
+{
+  "rankedBrands": ["Brand1", "Brand2", ...],
+  "unrankedBrands": ["BrandX", ...]
+}
+
+rankedBrands = clearly ordered recommendations
+unrankedBrands = mentioned but not explicitly recommended`,
         },
         {
           role: "user",
           content: response,
         },
       ],
-      max_tokens: 150,
-      temperature: 0.3,
+      max_tokens: 200,
+      temperature: 0.1,
     });
 
-    let extractedBrands: string[] = [];
+    let rankedBrands: string[] = [];
+    let unrankedBrands: string[] = [];
+    
     try {
-      const brandText = brandExtraction.choices[0]?.message?.content?.trim() || "[]";
-      const jsonMatch = brandText.match(/\[[\s\S]*\]/);
+      const brandText = brandExtraction.choices[0]?.message?.content?.trim() || "{}";
+      const jsonMatch = brandText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        extractedBrands = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        rankedBrands = parsed.rankedBrands || [];
+        unrankedBrands = parsed.unrankedBrands || [];
       }
     } catch (e) {
       console.error("Failed to parse extracted brands:", e);
+      // Fallback: try to extract as simple array
+      try {
+        const brandText = brandExtraction.choices[0]?.message?.content?.trim() || "[]";
+        const arrayMatch = brandText.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          rankedBrands = JSON.parse(arrayMatch[0]);
+        }
+      } catch {}
     }
 
-    // Build mentioned brands list with positions
-    const mentionedBrands = [];
-    let position = 1;
+    // Build mentioned brands list with PROPER RANKING
+    const mentionedBrands: Array<{
+      name: string;
+      position: number | null;
+      sentiment: string;
+      isKnown: boolean;
+      ranked: boolean;
+    }> = [];
 
     // Helper function to check if brand is mentioned (handles variations)
     const isBrandMentioned = (brand: string, text: string): boolean => {
@@ -217,29 +285,47 @@ Example: ["Notion", "Asana", "Monday.com"]`,
       return false;
     };
 
-    // Check known brands first
+    // Process RANKED brands first (these have explicit positions)
+    rankedBrands.forEach((brand, index) => {
+      // Check if it's a known brand (yours or competitor)
+      const isKnown = allBrands.some(b => b.toLowerCase() === brand.toLowerCase());
+      
+      mentionedBrands.push({
+        name: brand,
+        position: index + 1,
+        sentiment: "neutral",
+        isKnown,
+        ranked: true,
+      });
+    });
+
+    // Process UNRANKED brands (mentioned but not in recommendation list)
+    unrankedBrands.forEach(brand => {
+      // Skip if already in ranked list
+      if (rankedBrands.some(rb => rb.toLowerCase() === brand.toLowerCase())) return;
+      
+      const isKnown = allBrands.some(b => b.toLowerCase() === brand.toLowerCase());
+      
+      mentionedBrands.push({
+        name: brand,
+        position: null,
+        sentiment: "neutral",
+        isKnown,
+        ranked: false,
+      });
+    });
+    
+    // Check for known brands that weren't extracted but are mentioned in text
     for (const brand of allBrands) {
-      if (isBrandMentioned(brand, response)) {
+      const alreadyListed = mentionedBrands.some(mb => mb.name.toLowerCase() === brand.toLowerCase());
+      if (!alreadyListed && isBrandMentioned(brand, response)) {
         mentionedBrands.push({
           name: brand,
-          position,
+          position: null,
           sentiment: "neutral",
           isKnown: true,
+          ranked: false,
         });
-        position++;
-      }
-    }
-
-    // Add newly discovered brands
-    for (const brand of extractedBrands) {
-      if (!allBrands.some(b => b.toLowerCase() === brand.toLowerCase())) {
-        mentionedBrands.push({
-          name: brand,
-          position,
-          sentiment: "neutral",
-          isKnown: false,
-        });
-        position++;
       }
     }
 
@@ -299,7 +385,8 @@ Example: ["Notion", "Asana", "Monday.com"]`,
       
       // Determine prominence based on position
       const prominence: BrandSourceMapping['prominence'] = 
-        brand.position <= 2 ? 'high' : brand.position <= 4 ? 'medium' : 'low';
+        brand.position !== null && brand.position <= 2 ? 'high' : 
+        brand.position !== null && brand.position <= 4 ? 'medium' : 'low';
       
       brandSourceMappings.push({
         brand: brand.name,
@@ -317,6 +404,8 @@ Example: ["Notion", "Asana", "Monday.com"]`,
       yourBrandPosition,
       sources,
       brandSourceMappings,
+      lowConfidence,
+      confidenceReason,
     });
 
     return NextResponse.json({

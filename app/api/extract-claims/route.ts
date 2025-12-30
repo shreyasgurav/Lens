@@ -96,8 +96,9 @@ interface OutreachRecommendation {
 // ============================================================================
 
 const THRESHOLDS = {
-  MIN_CLAIM_FREQUENCY: 1,        // Claim must appear 1+ times (lowered for small datasets)
-  MIN_SOURCE_CITATIONS: 1,       // Source must be cited 1+ times (lowered for small datasets)
+  MIN_CLAIM_FREQUENCY: 1,        // Claim must appear 1+ times (lowered for faster results)
+  MIN_SOURCE_CITATIONS: 1,       // Source must be cited 1+ times (lowered for faster results)
+  MAX_CONTENT_RECOMMENDATIONS: 5, // Limit to 5 key blog recommendations
   MIN_PROMPT_IMPACT: 10,         // Must affect 10%+ of prompts for critical
   HIGH_INTENT_MULTIPLIER: 2.5,   // High-intent prompts count 2.5x
   AUTHORITY_SOURCE_BOOST: 1.5,   // Boost for authoritative sources
@@ -344,14 +345,24 @@ Return ONLY valid JSON array.`;
     });
 
     // ========================================================================
-    // STEP 4: Generate CONTENT recommendations with causal evidence
+    // STEP 4: Generate CONTENT recommendations from missing claims
+    // Focus on TOP insights about competitors only
     // ========================================================================
     
     const contentRecommendations: ContentRecommendation[] = [];
-    const topMissingClaims = missingClaims.slice(0, 8);
+    let contentId = 0;
     
-    for (let i = 0; i < topMissingClaims.length; i++) {
-      const claim = topMissingClaims[i];
+    // Sort claims by impact to get the most important ones
+    const sortedClaims = missingClaims.sort((a, b) => {
+      const scoreA = a.totalMentions * 10 + a.sources.length * 5 + a.prompts.filter(p => p.promptType === 'high_intent').length * 3;
+      const scoreB = b.totalMentions * 10 + b.sources.length * 5 + b.prompts.filter(p => p.promptType === 'high_intent').length * 3;
+      return scoreB - scoreA;
+    });
+    
+    // Take only top claims up to MAX limit
+    const topClaims = sortedClaims.slice(0, THRESHOLDS.MAX_CONTENT_RECOMMENDATIONS);
+    
+    for (const claim of topClaims) {
       const competitorMentions = claim.competitors.reduce((sum, c) => sum + c.mentions, 0);
       const topCompetitor = claim.competitors.sort((a, b) => b.mentions - a.mentions)[0];
       const highIntentPrompts = claim.prompts.filter(p => 
@@ -392,7 +403,7 @@ Return ONLY valid JSON array.`;
       );
       
       contentRecommendations.push({
-        id: `content-${i}`,
+        id: `content-${contentId++}`,
         missingClaim: claim.claim,
         claimType: claim.claimType,
         causalEvidence,
