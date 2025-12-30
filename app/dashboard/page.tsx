@@ -417,7 +417,7 @@ export default function DashboardPage() {
 
   if (!metrics) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-neutral-400 mx-auto mb-3" />
           <p className="text-neutral-500">Loading dashboard...</p>
@@ -480,7 +480,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
+    <div className="min-h-screen bg-white flex">
       {/* Sidebar */}
       <aside className="w-56 flex flex-col fixed h-full" style={{ backgroundColor: '#f3f2ee' }}>
         {/* Logo */}
@@ -667,7 +667,7 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4">
-                <div className="rounded-xl p-5 bg-white">
+                <div className="rounded-xl p-5 bg-neutral-100">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Visibility</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -676,7 +676,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">Based on {metrics.totalPrompts} prompts</p>
                 </div>
 
-                <div className="rounded-xl p-5 bg-white">
+                <div className="rounded-xl p-5 bg-neutral-100">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Citation Share</span>
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
@@ -685,7 +685,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{metrics.mentionCount} of {competitorRankings.reduce((s, c) => s + c.mentions, 0)} citations</p>
                 </div>
 
-                <div className="rounded-xl p-5 bg-white">
+                <div className="rounded-xl p-5 bg-neutral-100">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Brand Ranking</span>
                   </div>
@@ -693,7 +693,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-400 mt-1">{yourRanking === 1 ? "Market Leader" : `of ${competitorRankings.length} brands`}</p>
                 </div>
 
-                <div className="rounded-xl p-5 bg-white">
+                <div className="rounded-xl p-5 bg-neutral-100">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm text-neutral-500">Top Competitor</span>
                   </div>
@@ -723,7 +723,7 @@ export default function DashboardPage() {
               {/* Charts Row */}
               <div className="grid grid-cols-1 gap-6">
                 {/* Line Chart */}
-                <div className="rounded-xl p-8 bg-white">
+                <div className="rounded-xl p-8 bg-neutral-100">
                   <div className="flex items-center gap-2 mb-8">
                     <h2 className="text-lg font-semibold text-neutral-900 m-0">Competitor Visibility</h2>
                     <button className="text-neutral-400 hover:text-neutral-600 transition-colors">
@@ -838,7 +838,7 @@ export default function DashboardPage() {
               {/* Bottom Row */}
               <div className="grid grid-cols-2 gap-6">
                 {/* All Competitors */}
-                <div className="rounded-xl p-5 bg-white">
+                <div className="rounded-xl p-5 bg-neutral-100">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">All Competitors</h3>
                     <button 
@@ -889,7 +889,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Top Sources */}
-                <div className="rounded-xl p-5 bg-white">
+                <div className="rounded-xl p-5 bg-neutral-100">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-neutral-900">Top Sources</h3>
                     <button 
@@ -1052,7 +1052,7 @@ export default function DashboardPage() {
                   competitors.map((comp) => (
                     <div
                       key={comp.id}
-                      className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl"
+                      className="flex items-center justify-between px-4 py-3 bg-neutral-100 rounded-2xl"
                     >
                       <div className="flex items-center gap-3">
                         {comp.favicon ? (
@@ -1095,7 +1095,7 @@ export default function DashboardPage() {
           {selectedView === "content" && (
             <div className="fixed inset-0 left-56 flex">
               {/* Left Sidebar - Content Topics List */}
-              <div className="w-80 border-r border-neutral-200 flex flex-col bg-neutral-50">
+              <div className="w-80 border-r border-neutral-200 flex flex-col bg-white">
                 <div className="pt-6 px-3 pb-3">
                   <h1 className="text-2xl font-semibold text-neutral-900">Content Ideas</h1>
                 </div>
@@ -1115,7 +1115,7 @@ export default function DashboardPage() {
                         key={rec.id}
                         onClick={() => setExpandedContent(rec.id)}
                         className={`p-3 cursor-pointer transition-all rounded-2xl ${
-                          expandedContent === rec.id ? 'bg-white shadow-sm' : 'bg-transparent hover:bg-white/50'
+                          expandedContent === rec.id ? 'bg-neutral-100 shadow-sm' : 'bg-transparent hover:bg-neutral-100/50'
                         } ${rec.completed ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -1164,21 +1164,25 @@ export default function DashboardPage() {
                               </h1>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <button 
-                                  className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                                  title="Copy content"
+                                  className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors relative group"
                                 >
                                   <Copy className="w-5 h-5" />
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                    Copy blog
+                                  </div>
                                 </button>
                                 <button
                                   onClick={() => toggleContentComplete(selectedContent.id)}
-                                  className={`p-2 rounded-lg transition-colors ${
+                                  className={`p-2 rounded-lg transition-colors relative group ${
                                     selectedContent.completed 
                                       ? 'text-green-600 bg-green-50 hover:bg-green-100' 
                                       : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
                                   }`}
-                                  title={selectedContent.completed ? 'Completed' : 'Mark as complete'}
                                 >
                                   <Check className="w-5 h-5" />
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                    {selectedContent.completed ? 'Completed' : 'Mark as complete'}
+                                  </div>
                                 </button>
                               </div>
                             </div>
@@ -1228,7 +1232,7 @@ export default function DashboardPage() {
           {selectedView === "outreach" && (
             <div className="fixed inset-0 left-56 flex">
               {/* Left Sidebar - Sources List */}
-              <div className="w-80 border-r border-neutral-200 flex flex-col bg-neutral-50">
+              <div className="w-80 border-r border-neutral-200 flex flex-col bg-white">
                 <div className="pt-6 px-3 pb-3">
                   <h1 className="text-2xl font-semibold text-neutral-900">Outreach</h1>
                 </div>
@@ -1248,7 +1252,7 @@ export default function DashboardPage() {
                         key={rec.id}
                         onClick={() => setExpandedOutreach(rec.id)}
                         className={`p-3 cursor-pointer transition-all rounded-2xl ${
-                          expandedOutreach === rec.id ? 'bg-white shadow-sm' : 'bg-transparent hover:bg-white/50'
+                          expandedOutreach === rec.id ? 'bg-neutral-100 shadow-sm' : 'bg-transparent hover:bg-neutral-100/50'
                         } ${rec.completed ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-center gap-3">
@@ -1297,49 +1301,42 @@ export default function DashboardPage() {
                         {/* Email Form */}
                         <div className="flex-1 overflow-y-auto p-6 pt-20">
                           <div className="max-w-xl space-y-4">
-                            {/* Recipient */}
+                            {/* Recipient with Actions */}
                             <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">Recipient</label>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-medium text-neutral-500">Recipient</label>
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors relative group"
+                                  >
+                                    <Copy className="w-5 h-5" />
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                      Copy email
+                                    </div>
+                                  </button>
+                                  <button
+                                    onClick={() => toggleOutreachComplete(selectedOutreach.id)}
+                                    className={`p-2 rounded-lg transition-colors relative group ${
+                                      selectedOutreach.completed 
+                                        ? 'text-green-600 bg-green-50 hover:bg-green-100' 
+                                        : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                                    }`}
+                                  >
+                                    <Check className="w-5 h-5" />
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                      {selectedOutreach.completed ? 'Completed' : 'Mark as complete'}
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
                               <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
                                 contact@{selectedOutreach.platform?.toLowerCase().replace(/\s+/g, '')}.com
                               </div>
                             </div>
                             
-                            {/* Subject with Actions */}
+                            {/* Subject */}
                             <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <label className="block text-xs font-medium text-neutral-500">Subject Line</label>
-                                <div className="flex items-center gap-2">
-                                  {selectedOutreach.url && (
-                                    <a
-                                      href={selectedOutreach.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                                      title="Visit site"
-                                    >
-                                      <ExternalLink className="w-4 h-4" />
-                                    </a>
-                                  )}
-                                  <button 
-                                    className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                                    title="Copy email"
-                                  >
-                                    <Copy className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => toggleOutreachComplete(selectedOutreach.id)}
-                                    className={`p-1.5 rounded-lg transition-colors ${
-                                      selectedOutreach.completed 
-                                        ? 'text-green-600 bg-green-50 hover:bg-green-100' 
-                                        : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
-                                    }`}
-                                    title={selectedOutreach.completed ? 'Completed' : 'Mark as complete'}
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">Subject Line</label>
                               <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
                                 Partnership inquiry from {companyName}
                               </div>
@@ -1578,7 +1575,7 @@ export default function DashboardPage() {
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl"
+                    className="flex items-center justify-between px-4 py-3 bg-neutral-100 rounded-2xl"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <ExternalLink className="w-5 h-5 text-neutral-400 flex-shrink-0" />
