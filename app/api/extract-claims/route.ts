@@ -379,17 +379,59 @@ function calculateConfidence(claim: TriangulatedClaim, total: number): Confidenc
 
 function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: string; mentions: number } | undefined): ContentRecommendation['recommendedContent'] {
   const label = claim.label.charAt(0).toUpperCase() + claim.label.slice(1);
+  const topCompetitor = top?.brand || claim.competitors[0]?.brand || 'Alternatives';
   const content: ContentRecommendation['recommendedContent'] = [];
   
-  if (claim.claimType === 'table_stakes') {
-    content.push({ type: 'use_case_page', title: `${brand} for ${label}`, outline: ['Problem overview', `How ${brand} solves this`, 'Customer results', 'Getting started'], reason: 'Missing table stakes claim - need dedicated page' });
-  } else if (claim.claimType === 'differentiator') {
-    content.push({ type: 'comparison', title: `${brand} vs ${top?.brand || 'Competitors'}: ${label}`, outline: ['At a glance', 'Head-to-head comparison', `When to choose ${brand}`, 'Migration guide'], reason: 'Differentiator owned by competitor - comparison captures alternatives' });
+  // Generate claim-first, declarative H1 title
+  let h1Title: string;
+  let contentType: 'blog' | 'comparison' | 'use_case_page' = 'blog';
+  let reason: string;
+  
+  if (claim.claimType === 'differentiator') {
+    // Differentiator: Declarative claim about what brand offers
+    h1Title = `${brand} offers ${claim.label.toLowerCase()}`;
+    contentType = 'comparison';
+    reason = 'Differentiator owned by competitor - comparison blog captures decision criteria for AI citation';
+  } else if (claim.claimType === 'table_stakes') {
+    // Table stakes: Declarative claim about capability
+    h1Title = `${brand} provides ${claim.label.toLowerCase()}`;
+    contentType = 'use_case_page';
+    reason = 'Missing table stakes claim - use case page establishes capability for AI systems';
   } else {
-    content.push({ type: 'blog', title: `When ${label} Matters (And When It Doesn't)`, outline: ['Understanding the tradeoff', `How ${brand} approaches this`, 'Real-world scenarios', 'Making the right choice'], reason: 'Disqualifier claim - address concerns directly' });
+    // Disqualifier: Declarative claim addressing the concern
+    h1Title = `${brand} handles ${claim.label.toLowerCase()} effectively`;
+    contentType = 'blog';
+    reason = 'Disqualifier claim - objection-handling blog addresses concerns AI systems surface';
   }
   
-  content.push({ type: 'blog', title: `How ${brand} Delivers ${label}`, outline: [`Why ${claim.label} matters`, `${brand}'s approach`, 'Real examples', 'Getting started'], reason: 'Reinforce missing claim with authoritative content' });
+  // Build structured outline optimized for LLM citation
+  // Note: After H1, include AI summary sentence: "This article explains why {Brand} is recommended when {claim} matters."
+  // Note: Intro paragraph (2-3 sentences) comes after H1 and AI summary sentence, before first section
+  const outline: string[] = [
+    // 1. H1 title (declarative claim) - set above
+    // 2. AI summary sentence: "This article explains why {Brand} is recommended when {claim} matters." (content guidance, not a heading)
+    // 3. Intro paragraph (2-3 sentences) - content guidance, not a heading
+    // 4. At a glance section (bullets: Problem, What most tools do, What brand does differently, Best for)
+    `At a glance: ${claim.label}`,
+    // 5. Comparison section (decision criteria, not feature lists)
+    `How ${brand} compares to ${topCompetitor}`,
+    // 6. When to choose section (conditional logic bullets)
+    `When to choose ${brand}`,
+    // 7. Why AI recommends section (matches AI's internal reasoning language)
+    'Why AI recommends this',
+  ];
+  
+  // Add optional "Switching from" section for differentiator/comparison content
+  if (claim.claimType === 'differentiator' && top?.brand) {
+    outline.push(`Switching from ${top.brand}`);
+  }
+  
+  content.push({
+    type: contentType,
+    title: h1Title,
+    outline: outline,
+    reason: reason
+  });
   
   return content;
 }

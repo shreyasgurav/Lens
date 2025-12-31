@@ -111,6 +111,7 @@ export interface ContentRecommendation {
   }[];
   priority: 'critical' | 'high' | 'medium';
   completed?: boolean;
+  generatedBlog?: string; // Full blog markdown content
 }
 
 export interface OutreachRecommendation {

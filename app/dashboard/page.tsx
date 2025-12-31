@@ -156,6 +156,7 @@ export default function DashboardPage() {
     }
   };
 
+
   // Calculate competitor rankings with market share
   const competitorRankings = useMemo(() => {
     if (!simulationResults.length) return [];
@@ -1327,7 +1328,7 @@ export default function DashboardPage() {
               </div>
               
               {/* Right Panel - Content Details */}
-              <div className="flex-1 flex flex-col bg-white">
+              <div className="flex-1 flex flex-col bg-white overflow-hidden">
                 {expandedContent && contentRecommendations.find(r => r.id === expandedContent) ? (
                   (() => {
                     const selectedContent = contentRecommendations.find(r => r.id === expandedContent)!;
@@ -1335,14 +1336,18 @@ export default function DashboardPage() {
                     return (
                       <>
                         {/* Content Body */}
-                        <div className="flex-1 overflow-y-auto p-6 pt-20">
-                          <div className="max-w-4xl mx-auto">
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6 pt-20">
+                          <div className="max-w-3xl mx-auto">
                             <div className="flex items-start justify-between gap-4 mb-6">
                               <h1 className="text-2xl font-bold text-neutral-900 flex-1">
                                 {content?.title || selectedContent.missingClaim}
                               </h1>
                               <div className="flex items-center gap-2 flex-shrink-0">
+                                {selectedContent.generatedBlog && (
                                 <button 
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(selectedContent.generatedBlog || '');
+                                    }}
                                   className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors relative group"
                                 >
                                   <Copy className="w-5 h-5" />
@@ -1350,6 +1355,7 @@ export default function DashboardPage() {
                                     Copy blog
                                   </div>
                                 </button>
+                                )}
                                 <button
                                   onClick={() => toggleContentComplete(selectedContent.id)}
                                   className={`p-2 rounded-lg transition-colors relative group ${
@@ -1366,6 +1372,47 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             
+                            {selectedContent.generatedBlog ? (
+                              <div className="blog-content">
+                                {selectedContent.generatedBlog.split('\n\n').map((paragraph, i) => {
+                                  // Handle headings
+                                  if (paragraph.startsWith('# ')) {
+                                    return <h1 key={i} className="text-2xl font-bold text-neutral-900 mt-8 mb-4">{paragraph.replace(/^# /, '')}</h1>;
+                                  }
+                                  if (paragraph.startsWith('## ')) {
+                                    return <h2 key={i} className="text-xl font-semibold text-neutral-900 mt-6 mb-3">{paragraph.replace(/^## /, '')}</h2>;
+                                  }
+                                  if (paragraph.startsWith('### ')) {
+                                    return <h3 key={i} className="text-lg font-semibold text-neutral-900 mt-4 mb-2">{paragraph.replace(/^### /, '')}</h3>;
+                                  }
+                                  // Handle bullet lists
+                                  if (paragraph.includes('\n- ') || paragraph.startsWith('- ')) {
+                                    const items = paragraph.split('\n').filter(line => line.trim().startsWith('- '));
+                                    return (
+                                      <ul key={i} className="list-disc list-inside mb-4 space-y-2 text-neutral-700">
+                                        {items.map((item, j) => (
+                                          <li key={j} className="leading-relaxed">
+                                            {item.replace(/^-\s+/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    );
+                                  }
+                                  // Regular paragraphs
+                                  if (paragraph.trim()) {
+                                    return (
+                                      <p key={i} className="text-neutral-700 leading-relaxed mb-4" dangerouslySetInnerHTML={{
+                                        __html: paragraph
+                                          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                      }} />
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </div>
+                            ) : (
+                              <>
                             {content?.outline?.map((section, i) => (
                               <div key={i} className="mb-6">
                                 <h2 className="text-lg font-semibold text-neutral-900 mb-2">
@@ -1389,6 +1436,8 @@ export default function DashboardPage() {
                                   This is a key differentiator that competitors are being recognized for. Building authoritative content around this topic will help improve AI visibility.
                                 </p>
                               </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -1466,15 +1515,15 @@ export default function DashboardPage() {
               </div>
               
               {/* Right Panel - Email Preview */}
-              <div className="flex-1 flex flex-col bg-white">
+              <div className="flex-1 flex flex-col bg-white overflow-hidden">
                 {expandedOutreach && outreachRecommendations.find(r => r.id === expandedOutreach) ? (
                   (() => {
                     const selectedOutreach = outreachRecommendations.find(r => r.id === expandedOutreach)!;
                     return (
                       <>
                         {/* Email Form */}
-                        <div className="flex-1 overflow-y-auto p-6 pt-20">
-                          <div className="max-w-3xl mx-auto space-y-4">
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6 pt-20">
+                          <div className="max-w-2xl mx-auto space-y-4">
                             {/* Recipient with Actions */}
                             <div>
                               <div className="flex items-center justify-between mb-1">

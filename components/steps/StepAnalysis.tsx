@@ -190,14 +190,57 @@ export default function StepAnalysis() {
       
       setProgress(85); // Claim extraction in progress
       const claimsData = await claimsResponse.json();
-      setProgress(95); // Content/outreach generation complete
       if (claimsData.success) {
-        useOnboardingStore.getState().setContentRecommendations(
-          claimsData.contentRecommendations || [], 
-          claimsData.outreachRecommendations || []
+        const contentRecs = claimsData.contentRecommendations || [];
+        const outreachRecs = claimsData.outreachRecommendations || [];
+        
+        // Generate full blogs for each content recommendation
+        setProgress(90);
+        const contentRecsWithBlogs = await Promise.all(
+          contentRecs.map(async (rec: any) => {
+            if (!rec.recommendedContent?.[0]) return rec;
+            
+            const content = rec.recommendedContent[0];
+            const competitorList = rec.competitorMentions?.map((c: any) => c.brand) || competitors.map(c => c.name) || [];
+            
+            try {
+              const blogResponse = await fetch('/api/generate-blog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  brand: companyName,
+                  title: content.title,
+                  claim: rec.missingClaim,
+                  claimType: rec.claimType,
+                  outline: content.outline,
+                  competitors: competitorList,
+                  sources: rec.triangulation?.sources || [],
+                  aiSummarySentence: `This article explains why ${companyName} is recommended when ${rec.missingClaim} matters.`,
+                }),
+              });
+              
+              const blogData = await blogResponse.json();
+              if (blogData.success && blogData.blog) {
+                return {
+                  ...rec,
+                  generatedBlog: blogData.blog
+                };
+              }
+            } catch (error) {
+              console.error('Failed to generate blog for', rec.id, error);
+            }
+            
+            return rec;
+          })
         );
-        console.log('Generated content recommendations:', claimsData.contentRecommendations?.length || 0);
-        console.log('Generated outreach recommendations:', claimsData.outreachRecommendations?.length || 0);
+        
+        setProgress(95); // Content/outreach generation complete
+        useOnboardingStore.getState().setContentRecommendations(
+          contentRecsWithBlogs, 
+          outreachRecs
+        );
+        console.log('Generated content recommendations with blogs:', contentRecsWithBlogs.length);
+        console.log('Generated outreach recommendations:', outreachRecs.length);
       } else {
         console.error('Extract claims failed:', claimsData);
       }
