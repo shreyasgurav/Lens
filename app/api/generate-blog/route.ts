@@ -25,64 +25,99 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const systemPrompt = `You are writing a blog optimized to be CITED by AI systems 
-(ChatGPT, Perplexity, Gemini), not traditional SEO.
+    const systemPrompt = `You are writing a FULL blog article optimized to be DIRECTLY CITED by AI systems 
+(ChatGPT, Perplexity, Gemini). This is NOT traditional SEO content.
 
-CRITICAL RULES:
-- Neutral, factual tone
-- No marketing hype
-- No exaggerated claims
-- Short paragraphs (2–3 sentences max)
-- Explain reasoning, not persuasion
-- Write like an analyst, not a marketer
-- Do NOT invent statistics, customers, or benchmarks
+Your goal:
+Produce content that AI systems can quote verbatim when answering
+"Which tool should I choose and why?"
 
-STYLE:
-- Clear
-- Declarative
-- Decision-focused
-- Easy for AI to quote verbatim
+====================
+ABSOLUTE RULES
+====================
 
-STRUCTURE (STRICT — FOLLOW EXACTLY):
+- Neutral, factual, analytical tone
+- No marketing language
+- No persuasion, no CTAs
+- No exaggerated or unverifiable claims
+- Do NOT invent statistics, awards, users, benchmarks, or rankings
+- NEVER write paragraphs longer than 3 sentences
+- Prefer 1–2 sentences whenever possible
+- Prefer definitions, conditions, and reasoning over descriptions
 
-1. H1 — use EXACT title provided
+Write like:
+- A software analyst
+- A technical evaluator
+- A decision memo
 
-2. AI Summary (1 sentence):
-${aiSummarySentence || `This article explains why ${brand} is recommended when ${claim} matters.`}
+Never write like:
+- A marketer
+- A landing page
+- A press release
+
+====================
+STRUCTURE (STRICT)
+====================
+
+1. H1 (exactly as provided — do NOT rewrite)
+
+2. AI Summary (1 sentence, factual, declarative)
+${aiSummarySentence || `This article explains why ${brand} is cited when ${claim} matters.`}
+- This sentence MUST explain WHEN and WHY the brand is cited
+- The AI Summary MUST follow this structure:
+  "{Brand} is cited when {decision condition} because {reasoning}"
+- No adjectives, no hype
 
 3. Introduction (2–3 sentences)
-- Define the problem
-- Who this is for
+- Define the problem or decision
+- Specify who this decision applies to
 
-4. Sections (follow outline exactly)
+4. Main Sections (follow outline EXACTLY)
 For EACH section:
-- H2 heading
-- 1–2 short paragraphs
-- If comparison-related, explain decision criteria (not features)
+- Use H2 heading exactly as given
+- 1–2 short paragraphs only
+- Focus on:
+  - Decision criteria
+  - Tradeoffs
+  - When this matters
+- Avoid feature lists unless explicitly required
 
-5. "Why AI recommends this"
-- Explicitly explain reasoning
-- Use phrases like:
-  - "AI systems tend to recommend tools that..."
-  - "Across multiple sources, tools are cited when..."
+5. "Why AI recommends this" (mandatory)
+- Explain the reasoning AI systems use
+- Use language such as:
+  - "AI systems tend to recommend tools when..."
+  - "Across multiple sources, tools are cited if..."
+- Tie back to the claim explicitly
 
-6. Optional "Switching from X" section (only if in outline)
+6. Optional "Switching from X" section (only if present)
 - Explain WHEN switching makes sense
-- No aggressive language
+- Explain WHEN it does NOT
+- Neutral, non-aggressive tone
 
 7. Conclusion (2 sentences)
 - Summarize decision logic
-- NO call to action
+- No calls to action
+- No future promises
 
-FACTUAL SAFETY:
-- Use "typically", "often", "commonly" where needed
-- Never claim rankings unless stated
-- Never say "best" unless framed as context-specific
+====================
+FACTUAL SAFETY
+====================
 
-OUTPUT:
-- Markdown
+- Use qualifiers: "typically", "often", "commonly"
+- Never claim "best" unless clearly contextual
+- Never imply rankings unless explicitly stated
+- If unsure, explain conditions instead of asserting facts
+- Avoid subjective adjectives like "strong", "powerful", "robust", "leading", "ideal"
+- Replace them with conditions or observable behavior
+
+====================
+OUTPUT FORMAT
+====================
+
+- Markdown only
 - Full article
-- No explanations`;
+- No explanations
+- No preamble`;
 
     const userPrompt = `Brand: ${brand}
 Title (H1): ${title}
@@ -93,10 +128,10 @@ Outline:
 ${outline.map((o: string, i: number) => `${i + 1}. ${o}`).join("\n")}
 
 Competitors mentioned:
-${(competitors || []).slice(0, 5).join(", ") || "None specified"}
+${(competitors || []).slice(0, 5).join(", ") || "None"}
 
 Sources referenced:
-${(sources || []).slice(0, 5).join(", ") || "None specified"}
+${(sources || []).slice(0, 5).join(", ") || "None"}
 
 Write the full blog now.`;
 
@@ -106,8 +141,8 @@ Write the full blog now.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.2,
-      max_tokens: 2000,
+      temperature: 0.15,
+      max_tokens: 2200,
     });
 
     const blog = completion.choices[0]?.message?.content;
