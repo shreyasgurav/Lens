@@ -94,6 +94,7 @@ export default function DashboardPage() {
   const [chatInput, setChatInput] = useState("");
   const [isAgentThinking, setIsAgentThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!companyName) {
@@ -113,6 +114,17 @@ export default function DashboardPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      const maxHeight = 200; // Maximum height in pixels
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+      textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+    }
+  }, [chatInput]);
 
   // Claims are now extracted automatically in StepAnalysis after simulations complete
   // Manual refresh is still available via the Refresh button
@@ -361,48 +373,207 @@ export default function DashboardPage() {
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     const lowerMessage = userMessage.toLowerCase();
+    
+    // Build comprehensive context from dashboard data
+    const yourRanking = competitorRankings.findIndex(c => c.isYou) + 1;
+    const topCompetitor = competitorRankings.find(c => !c.isYou);
+    const yourVisibility = metrics?.visibilityPercentage.toFixed(1) || '0.0';
+    const totalCompetitors = competitorRankings.length;
+    const lowCoverageTopics = topicCoverage.filter(t => t.coverage < 50);
+    const completedContent = contentRecommendations.filter(c => c.completed).length;
+    const totalContent = contentRecommendations.length;
+    const completedOutreach = outreachRecommendations.filter(o => o.completed).length;
+    const totalOutreach = outreachRecommendations.length;
+    const incompleteContent = contentRecommendations.filter(c => !c.completed);
+    const incompleteOutreach = outreachRecommendations.filter(o => !o.completed);
+    
+    // Generate natural, context-aware response
     let response = "";
     let suggestions: string[] = [];
 
-    if (lowerMessage.includes("visibility") || lowerMessage.includes("appear")) {
-      response = `Your current visibility is ${metrics?.visibilityPercentage.toFixed(1)}%. You appear in ${metrics?.mentionCount || 0} out of ${metrics?.totalPrompts || 0} AI responses.\n\nTo improve this:`;
+    // Check for specific topics
+    if (lowerMessage.includes("competitor") || lowerMessage.includes("competition") || competitors.some(c => lowerMessage.includes(c.name.toLowerCase()))) {
+      const mentionedCompetitor = competitors.find(c => lowerMessage.includes(c.name.toLowerCase()));
+      if (mentionedCompetitor) {
+        const compRanking = competitorRankings.find(c => c.name.toLowerCase() === mentionedCompetitor.name.toLowerCase());
+        response = `${mentionedCompetitor.name} has ${compRanking?.visibility.toFixed(1) || '0'}% visibility compared to your ${yourVisibility}%. `;
+        if (compRanking && compRanking.visibility > parseFloat(yourVisibility)) {
+          response += `They're outperforming you by ${(compRanking.visibility - parseFloat(yourVisibility)).toFixed(1)} percentage points. `;
+        }
+        response += `To compete, focus on creating comparison content and targeting the same high-authority sources they're using.`;
       suggestions = [
-        "Create more comparison content (e.g., 'X vs Y' pages)",
-        "Add comprehensive FAQs that match natural language queries",
-        "Ensure your product information is on authoritative sources like Wikipedia and GitHub"
-      ];
-    } else if (lowerMessage.includes("competitor") || lowerMessage.includes(competitorRankings[0]?.name.toLowerCase())) {
-      const topComp = competitorRankings.find(c => !c.isYou);
-      response = `Your top competitor is ${topComp?.name} with ${topComp?.visibility.toFixed(1)}% visibility.\n\nHere's what they're doing better:`;
+          `Create a "${companyName} vs ${mentionedCompetitor.name}" comparison page`,
+          "Analyze their content strategy and identify gaps",
+          "Target the same sources they're being cited on"
+        ];
+      } else {
+        response = `You're currently ranked #${yourRanking} out of ${totalCompetitors} competitors. `;
+        if (topCompetitor) {
+          response += `Your top competitor is ${topCompetitor.name} with ${topCompetitor.visibility.toFixed(1)}% visibility. `;
+          if (topCompetitor.visibility > parseFloat(yourVisibility)) {
+            response += `They're ahead by ${(topCompetitor.visibility - parseFloat(yourVisibility)).toFixed(1)} percentage points. `;
+          }
+        }
+        response += `I can help you analyze specific competitors or create a strategy to outrank them.`;
       suggestions = [
-        `${topComp?.name} appears more frequently in "best tool" queries - create comparison content`,
-        "They likely have better coverage on high-authority domains",
-        "Consider creating direct comparison pages: 'Your Brand vs " + topComp?.name + "'"
-      ];
-    } else if (lowerMessage.includes("improve") || lowerMessage.includes("better") || lowerMessage.includes("help")) {
-      response = `Based on your data, here are the top actions to improve your AI visibility:`;
-      suggestions = generateSuggestions.slice(0, 4);
-    } else if (lowerMessage.includes("topic") || lowerMessage.includes("query") || lowerMessage.includes("search")) {
-      const lowTopics = topicCoverage.filter(t => t.coverage < 50);
-      response = `You have ${lowTopics.length} topics with less than 50% coverage:\n\n${lowTopics.map(t => `• "${t.topic}": ${t.coverage.toFixed(0)}%`).join('\n')}\n\nFocus on these first:`;
-      suggestions = lowTopics.slice(0, 3).map(t => 
-        `Create authoritative content for "${t.topic}" - ${t.dominantCompetitor ? `${t.dominantCompetitor} dominates this space` : 'opportunity to lead'}`
-      );
-    } else if (lowerMessage.includes("source") || lowerMessage.includes("citation")) {
-      response = topSources.length > 0 
-        ? `AI assistants cite these sources most frequently:\n\n${topSources.map((s, i) => `${i+1}. ${s.title}: ${s.count} citations`).join('\n')}\n\nYour priority actions:`
-        : `No sources data yet. Run simulations to see which sources AI assistants cite.\n\nYour priority actions:`;
+          `Analyze ${topCompetitor?.name || 'top competitor'}'s strategy`,
+          "See all competitors and their visibility",
+          "Create comparison content to compete"
+        ];
+      }
+    } else if (lowerMessage.includes("content") || lowerMessage.includes("blog") || lowerMessage.includes("article") || lowerMessage.includes("write")) {
+      if (contentRecommendations.length > 0) {
+        response = `You have ${totalContent} content ideas, with ${completedContent} completed. `;
+        if (incompleteContent.length > 0) {
+          response += `Here are your top priorities:\n\n`;
+          incompleteContent.slice(0, 3).forEach((rec, i) => {
+            response += `${i + 1}. ${rec.recommendedContent?.[0]?.title || rec.missingClaim}\n`;
+          });
+          response += `\nThese content pieces will help establish your authority in areas where competitors are currently dominating.`;
+        } else {
+          response += `Great job completing all your content ideas! Consider running more simulations to discover new opportunities.`;
+        }
+        suggestions = [
+          "View all content ideas in the Content Ideas section",
+          "Get detailed outlines for each piece",
+          "Mark completed items as done"
+        ];
+      } else {
+        response = `You don't have any content ideas yet. Run simulations to discover content opportunities based on where competitors are being mentioned. Once you have data, I can help you prioritize which content to create first.`;
+        suggestions = [
+          "Complete onboarding to generate content ideas",
+          "Run more simulations to discover opportunities"
+        ];
+      }
+    } else if (lowerMessage.includes("outreach") || lowerMessage.includes("email") || lowerMessage.includes("contact") || lowerMessage.includes("source")) {
+      if (outreachRecommendations.length > 0) {
+        response = `You have ${totalOutreach} outreach opportunities, with ${completedOutreach} completed. `;
+        if (incompleteOutreach.length > 0) {
+          response += `Here are platforms you should reach out to:\n\n`;
+          incompleteOutreach.slice(0, 3).forEach((rec, i) => {
+            response += `${i + 1}. ${rec.platform} - ${rec.reason}\n`;
+          });
+          response += `\nThese platforms frequently cite competitors in your space. Getting featured here will significantly boost your visibility.`;
+        } else {
+          response += `Excellent! You've completed all outreach opportunities. Keep monitoring for new sources as you run more simulations.`;
+        }
+        suggestions = [
+          "View all outreach opportunities in the Outreach section",
+          "Use the email templates provided",
+          "Track your outreach progress"
+        ];
+      } else if (topSources.length > 0) {
+        response = `Based on your simulations, AI assistants frequently cite these sources:\n\n`;
+        topSources.slice(0, 5).forEach((source, i) => {
+          response += `${i + 1}. ${source.title} (${source.count} citations)\n`;
+        });
+        response += `\nGetting your brand featured on these high-authority sources will dramatically improve your AI visibility.`;
+        suggestions = [
+          "See detailed outreach recommendations",
+          "Get email templates for each source",
+          "Track which sources you've contacted"
+        ];
+      } else {
+        response = `Run simulations first to identify which sources AI assistants are citing. Once you have that data, I can help you prioritize outreach.`;
+      }
+    } else if (lowerMessage.includes("topic") || lowerMessage.includes("query") || lowerMessage.includes("search") || lowerMessage.includes("keyword")) {
+      if (lowCoverageTopics.length > 0) {
+        response = `You have ${lowCoverageTopics.length} topics where your coverage is below 50%:\n\n`;
+        lowCoverageTopics.slice(0, 5).forEach(t => {
+          response += `• "${t.topic}": ${t.coverage.toFixed(0)}% coverage`;
+          if (t.dominantCompetitor) {
+            response += ` (${t.dominantCompetitor} dominates)`;
+          }
+          response += `\n`;
+        });
+        response += `\nThese are high-priority opportunities. Creating authoritative content for these topics will help you compete more effectively.`;
+        suggestions = lowCoverageTopics.slice(0, 3).map(t => 
+          `Create content for "${t.topic}" to compete with ${t.dominantCompetitor || 'competitors'}`
+        );
+      } else if (topicCoverage.length > 0) {
+        response = `Great news! You have good coverage across your tracked topics. Your average coverage is ${(topicCoverage.reduce((sum, t) => sum + t.coverage, 0) / topicCoverage.length).toFixed(0)}%. Consider adding new topics to track or running more simulations to discover new opportunities.`;
       suggestions = [
-        "Ensure your brand has accurate Wikipedia coverage",
-        "Publish technical content on GitHub and Stack Overflow",
-        "Create guest posts on Medium with product mentions"
+          "Add new topics to track",
+          "Run more simulations",
+          "Analyze competitor topic coverage"
       ];
     } else {
-      response = `I can help you improve your AI search visibility. Here's your current status:\n\n• Visibility: ${metrics?.visibilityPercentage.toFixed(1)}%\n• Ranking: #${competitorRankings.findIndex(c => c.isYou) + 1} in your market\n• Top competitor: ${competitorRankings.find(c => !c.isYou)?.name}\n\nWhat would you like to know more about?`;
+        response = `You haven't tracked any topics yet. Add topics in the onboarding process, and I'll help you analyze your coverage and identify opportunities.`;
+      }
+    } else if (lowerMessage.includes("visibility") || lowerMessage.includes("appear") || lowerMessage.includes("mention") || lowerMessage.includes("ranking")) {
+      response = `Your current AI visibility is ${yourVisibility}%. You appear in ${metrics?.mentionCount || 0} out of ${metrics?.totalPrompts || 0} AI responses, ranking you #${yourRanking} out of ${totalCompetitors} competitors. `;
+      
+      if (parseFloat(yourVisibility) < 30) {
+        response += `This is relatively low. Here's what you should focus on:`;
+        suggestions = [
+          "Create comparison content (e.g., 'X vs Y' pages)",
+          "Build authority on high-citation sources like Wikipedia",
+          "Target low-coverage topics where competitors dominate"
+        ];
+      } else if (parseFloat(yourVisibility) < 60) {
+        response += `You're making progress! To reach the next level:`;
+        suggestions = [
+          "Complete your content ideas to establish more authority",
+          "Reach out to high-citation sources",
+          "Create comprehensive FAQs and comparison pages"
+        ];
+      } else {
+        response += `Excellent visibility! To maintain and grow:`;
+        suggestions = [
+          "Monitor competitor strategies",
+          "Expand into new topics",
+          "Maintain presence on key sources"
+        ];
+      }
+    } else if (lowerMessage.includes("improve") || lowerMessage.includes("better") || lowerMessage.includes("help") || lowerMessage.includes("what should") || lowerMessage.includes("how can")) {
+      // Generate personalized recommendations
+      const recommendations: string[] = [];
+      
+      if (lowCoverageTopics.length > 0) {
+        recommendations.push(`Focus on ${lowCoverageTopics[0].topic} - you only have ${lowCoverageTopics[0].coverage.toFixed(0)}% coverage`);
+      }
+      
+      if (incompleteContent.length > 0) {
+        recommendations.push(`Complete your content ideas - you have ${incompleteContent.length} pending`);
+      }
+      
+      if (incompleteOutreach.length > 0) {
+        recommendations.push(`Reach out to ${incompleteOutreach[0].platform} - they frequently cite competitors`);
+      }
+      
+      if (topCompetitor && topCompetitor.visibility > parseFloat(yourVisibility)) {
+        recommendations.push(`Analyze ${topCompetitor.name}'s strategy - they're ${(topCompetitor.visibility - parseFloat(yourVisibility)).toFixed(1)}% ahead`);
+      }
+      
+      if (recommendations.length > 0) {
+        response = `Based on your current data, here's what I'd prioritize:\n\n${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\nWould you like me to dive deeper into any of these?`;
+      } else {
+        response = `You're doing well! Your visibility is ${yourVisibility}% and you're ranked #${yourRanking}. To continue improving, consider running more simulations to discover new opportunities, or let me know what specific area you'd like to focus on.`;
+      }
+      
+      suggestions = [
+        "Show me my content ideas",
+        "What sources should I target?",
+        "Analyze my competitors"
+      ];
+    } else {
+      // Default helpful response
+      response = `I'm here to help you improve your AI search visibility. Right now, you're at ${yourVisibility}% visibility and ranked #${yourRanking} out of ${totalCompetitors} competitors. `;
+      
+      if (totalContent > 0 || totalOutreach > 0 || lowCoverageTopics.length > 0) {
+        response += `I can see you have:\n`;
+        if (totalContent > 0) response += `• ${totalContent} content ideas\n`;
+        if (totalOutreach > 0) response += `• ${totalOutreach} outreach opportunities\n`;
+        if (lowCoverageTopics.length > 0) response += `• ${lowCoverageTopics.length} topics needing better coverage\n`;
+        response += `\nWhat would you like to focus on?`;
+      } else {
+        response += `Ask me about your competitors, content ideas, outreach opportunities, or topics - I have access to all your dashboard data and can provide specific recommendations.`;
+      }
+      
       suggestions = [
         "How can I improve my visibility?",
         "What are my competitors doing?",
-        "Which topics should I focus on?",
+        "Show me content ideas",
         "What sources should I target?"
       ];
     }
@@ -652,17 +823,17 @@ export default function DashboardPage() {
         <div className="p-3 border-t border-neutral-100">
           <button 
             onClick={() => router.push("/onboarding")}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50 rounded-lg"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-neutral-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Exit
           </button>
         </div>
       </aside>
-      <main className="flex-1 ml-56">
-        <div className="p-6">
+      <main className="flex-1 ml-56 overflow-hidden">
           {/* Dashboard View */}
           {selectedView === "dashboard" && (
+          <div className="p-6">
             <div className="pt-6 space-y-6">
               <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
               {/* Stats Grid */}
@@ -940,6 +1111,7 @@ export default function DashboardPage() {
                       <p className="text-sm text-neutral-400 text-center py-4">No sources yet</p>
                     )}
                   </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -947,19 +1119,13 @@ export default function DashboardPage() {
 
           {/* Agent Chat View */}
           {selectedView === "agent" && (
-            <div className="max-w-3xl mx-auto h-[calc(100vh-120px)] flex flex-col">
+            <div className="h-[100vh] flex flex-col">
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {chatMessages.length === 0 && (
-                  <div className="text-center py-20">
-                    <h3 className="text-2xl font-semibold text-neutral-900 mb-2">How can I help you today?</h3>
-                    <p className="text-sm text-neutral-500">Ask me anything about improving your AI visibility</p>
-                  </div>
-                )}
-
+              <div className="flex-1 overflow-y-auto px-4 pt-6 pb-32 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="max-w-3xl mx-auto">
                 {chatMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-5 py-3 ${
+                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} mb-4`}>
+                      <div className={`max-w-[85%] rounded-[20px] px-4 py-3 ${
                       msg.role === "user" 
                         ? "bg-neutral-900 text-white" 
                         : "text-neutral-900"
@@ -980,8 +1146,8 @@ export default function DashboardPage() {
                 ))}
 
                 {isAgentThinking && (
-                  <div className="flex justify-start">
-                    <div className="rounded-2xl px-5 py-3" style={{ backgroundColor: '#f3f2ee' }}>
+                    <div className="flex justify-start mb-4">
+                      <div className="rounded-[20px] px-4 py-3" style={{ backgroundColor: '#f3f2ee' }}>
                       <div className="flex gap-1">
                         <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                         <span className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -991,24 +1157,32 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div ref={chatEndRef} />
+                </div>
               </div>
 
               {/* Chat Input - ChatGPT Style */}
-              <div className="px-4 pb-6">
+              <div className="fixed bottom-0 left-56 right-0 bg-white px-4 pb-6 pt-3">
                 <div className="max-w-3xl mx-auto">
-                  <div className="relative flex items-center rounded-3xl shadow-sm" style={{ backgroundColor: '#f3f2ee' }}>
-                    <input
-                      type="text"
+                  <div className="relative flex items-end rounded-3xl shadow-sm" style={{ backgroundColor: '#f3f2ee' }}>
+                    <textarea
+                      ref={textareaRef}
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleAgentChat(chatInput)}
-                      placeholder="Ask anything"
-                      className="flex-1 px-5 py-3.5 bg-transparent text-[15px] focus:outline-none placeholder:text-neutral-500"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAgentChat(chatInput);
+                        }
+                      }}
+                      placeholder="Ask me anything about improving your AI visibility"
+                      className="flex-1 px-5 py-3.5 bg-transparent text-[15px] focus:outline-none placeholder:text-neutral-500 resize-none overflow-y-auto"
+                      style={{ minHeight: '52px', maxHeight: '200px' }}
+                      rows={1}
                     />
                     <button
                       onClick={() => handleAgentChat(chatInput)}
                       disabled={!chatInput.trim() || isAgentThinking}
-                      className="mr-2 p-2 rounded-full bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      className="mr-2 mb-2 p-2 rounded-full bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
                     >
                       <ArrowUp className="w-4 h-4" />
                     </button>
@@ -1020,6 +1194,7 @@ export default function DashboardPage() {
 
           {/* Competitors View */}
           {selectedView === "competitors" && (
+          <div className="p-6">
             <div className="max-w-4xl mx-auto pt-6 space-y-6">
               <h1 className="text-2xl font-semibold text-neutral-900">Competitors</h1>
               {/* Add Competitor - Underline Style */}
@@ -1088,6 +1263,7 @@ export default function DashboardPage() {
                   ))
                 )}
               </div>
+              </div>
             </div>
           )}
 
@@ -1095,7 +1271,7 @@ export default function DashboardPage() {
           {selectedView === "content" && (
             <div className="fixed inset-0 left-56 flex">
               {/* Left Sidebar - Content Topics List */}
-              <div className="w-80 border-r border-neutral-200 flex flex-col bg-white">
+              <div className="w-96 border-r border-neutral-200 flex flex-col bg-white">
                 <div className="pt-6 px-3 pb-3">
                   <h1 className="text-2xl font-semibold text-neutral-900">Content Ideas</h1>
                 </div>
@@ -1110,7 +1286,10 @@ export default function DashboardPage() {
                 
                 {!isExtractingClaims && contentRecommendations.length > 0 && (
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {contentRecommendations.map((rec) => (
+                    {[...contentRecommendations].sort((a, b) => {
+                      if (a.completed === b.completed) return 0;
+                      return a.completed ? 1 : -1;
+                    }).map((rec) => (
                       <div
                         key={rec.id}
                         onClick={() => setExpandedContent(rec.id)}
@@ -1157,7 +1336,7 @@ export default function DashboardPage() {
                       <>
                         {/* Content Body */}
                         <div className="flex-1 overflow-y-auto p-6 pt-20">
-                          <div className="max-w-2xl">
+                          <div className="max-w-4xl mx-auto">
                             <div className="flex items-start justify-between gap-4 mb-6">
                               <h1 className="text-2xl font-bold text-neutral-900 flex-1">
                                 {content?.title || selectedContent.missingClaim}
@@ -1232,7 +1411,7 @@ export default function DashboardPage() {
           {selectedView === "outreach" && (
             <div className="fixed inset-0 left-56 flex">
               {/* Left Sidebar - Sources List */}
-              <div className="w-80 border-r border-neutral-200 flex flex-col bg-white">
+              <div className="w-96 border-r border-neutral-200 flex flex-col bg-white">
                 <div className="pt-6 px-3 pb-3">
                   <h1 className="text-2xl font-semibold text-neutral-900">Outreach</h1>
                 </div>
@@ -1247,7 +1426,10 @@ export default function DashboardPage() {
                 
                 {!isExtractingClaims && outreachRecommendations.length > 0 && (
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {outreachRecommendations.map((rec) => (
+                    {[...outreachRecommendations].sort((a, b) => {
+                      if (a.completed === b.completed) return 0;
+                      return a.completed ? 1 : -1;
+                    }).map((rec) => (
                       <div
                         key={rec.id}
                         onClick={() => setExpandedOutreach(rec.id)}
@@ -1292,7 +1474,7 @@ export default function DashboardPage() {
                       <>
                         {/* Email Form */}
                         <div className="flex-1 overflow-y-auto p-6 pt-20">
-                          <div className="max-w-xl space-y-4">
+                          <div className="max-w-3xl mx-auto space-y-4">
                             {/* Recipient with Actions */}
                             <div>
                               <div className="flex items-center justify-between mb-1">
@@ -1371,6 +1553,7 @@ export default function DashboardPage() {
 
           {/* Prompts View */}
           {selectedView === "prompts" && (
+          <div className="p-6">
             <div className="max-w-6xl mx-auto pt-6 space-y-6">
               <h1 className="text-2xl font-semibold text-neutral-900">Prompts</h1>
               {/* Add Custom Prompt */}
@@ -1554,10 +1737,12 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
+            </div>
           )}
 
           {/* Sources View */}
           {selectedView === "sources" && (
+          <div className="p-6">
             <div className="max-w-4xl mx-auto pt-6 space-y-6">
               <h1 className="text-2xl font-semibold text-neutral-900">Sources</h1>
               <div className="space-y-2">
@@ -1587,10 +1772,10 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+              </div>
             </div>
           )}
 
-        </div>
       </main>
     </div>
   );
