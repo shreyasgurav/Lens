@@ -115,6 +115,20 @@ export default function DashboardPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  // Auto-select first content idea when opening content view
+  useEffect(() => {
+    if (selectedView === "content" && contentRecommendations.length > 0) {
+      setExpandedContent(contentRecommendations[0].id);
+    }
+  }, [selectedView, contentRecommendations]);
+
+  // Auto-select first outreach when opening outreach view
+  useEffect(() => {
+    if (selectedView === "outreach" && outreachRecommendations.length > 0) {
+      setExpandedOutreach(outreachRecommendations[0].id);
+    }
+  }, [selectedView, outreachRecommendations]);
+
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
@@ -1375,6 +1389,10 @@ export default function DashboardPage() {
                             {selectedContent.generatedBlog ? (
                               <div className="blog-content">
                                 {selectedContent.generatedBlog.split('\n\n').map((paragraph, i) => {
+                                  // Skip the first H1 since we already show the title at the top
+                                  if (i === 0 && paragraph.startsWith('# ')) {
+                                    return null;
+                                  }
                                   // Handle headings
                                   if (paragraph.startsWith('# ')) {
                                     return <h1 key={i} className="text-2xl font-bold text-neutral-900 mt-8 mb-4">{paragraph.replace(/^# /, '')}</h1>;
