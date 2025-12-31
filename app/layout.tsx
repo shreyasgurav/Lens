@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Lens",
   description: "Track how your brand appears in AI-generated responses",
+  icons: {
+    icon: "/Lens-Logo-White.png",
+  },
 };
 
 export default function RootLayout({
