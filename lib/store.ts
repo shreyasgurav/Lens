@@ -119,18 +119,36 @@ export interface OutreachRecommendation {
   type: 'review_site' | 'publication' | 'directory' | 'community';
   platform: string;
   url?: string;
-  contactEmail?: string;
-  reason: string;
-  causalEvidence: {
-    citationCount: number;
-    promptsAffected: number;
-    competitorsPresent: number;
-    claimsReinforced: string[];
+  // New AI-driven contact discovery
+  contactEmail: string;
+  contactConfidence?: 'high' | 'medium' | 'low';
+  contactSource?: 'ai_discovered' | 'pattern' | 'contact_page';
+  // New LLM-generated email
+  subject?: string;
+  emailBody?: string;
+  // Claim-driven context
+  claimToEstablish?: string;
+  competitorsReinforcing?: string[];
+  // Legacy fields (for backwards compatibility)
+  reason?: string;
+  causalEvidence?: {
+    citationCount?: number;
+    promptsAffected?: number;
+    competitorsPresent?: number | string[];
+    claimsReinforced?: string[];
+    simulationsAppeared?: number;
   };
-  competitorPresence: string[];
+  competitorPresence?: string[];
+  confidence?: {
+    promptConfidence: number;
+    sourceConfidence: number;
+    competitivePressure: number;
+    final: number;
+    explanation: string;
+  };
   priority: 'critical' | 'high' | 'medium';
-  actions: string[];
-  authorityScore: number;
+  actions?: string[];
+  authorityScore?: number;
   completed?: boolean;
 }
 

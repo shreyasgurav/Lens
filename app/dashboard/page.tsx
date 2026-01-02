@@ -88,6 +88,7 @@ export default function DashboardPage() {
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
   const [expandedContent, setExpandedContent] = useState<string | null>(null);
   const [expandedOutreach, setExpandedOutreach] = useState<string | null>(null);
+  const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
   
   // Agent Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -95,6 +96,16 @@ export default function DashboardPage() {
   const [isAgentThinking, setIsAgentThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset copied state after 2 seconds
+  useEffect(() => {
+    if (copiedItemId) {
+      const timer = setTimeout(() => {
+        setCopiedItemId(null);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [copiedItemId]);
 
   useEffect(() => {
     if (!companyName) {
@@ -1361,12 +1372,17 @@ export default function DashboardPage() {
                                 <button 
                                     onClick={() => {
                                       navigator.clipboard.writeText(selectedContent.generatedBlog || '');
+                                      setCopiedItemId(`content-${selectedContent.id}`);
                                     }}
                                   className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors relative group"
                                 >
-                                  <Copy className="w-5 h-5" />
+                                  {copiedItemId === `content-${selectedContent.id}` ? (
+                                    <Check className="w-5 h-5 text-green-600" />
+                                  ) : (
+                                    <Copy className="w-5 h-5" />
+                                  )}
                                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                    Copy blog
+                                    {copiedItemId === `content-${selectedContent.id}` ? 'Copied!' : 'Copy blog'}
                                   </div>
                                 </button>
                                 )}
@@ -1548,11 +1564,22 @@ export default function DashboardPage() {
                                 <label className="block text-xs font-medium text-neutral-500">Recipient</label>
                                 <div className="flex items-center gap-2">
                                   <button 
+                                    onClick={() => {
+                                      const subject = (selectedOutreach as any).subject || selectedOutreach.actions?.[0]?.replace('Subject: ', '') || `Partnership inquiry from ${companyName}`;
+                                      const body = (selectedOutreach as any).emailBody || selectedOutreach.reason || `Hey there,\n\nI'm reaching out from ${companyName}. We noticed your platform covers ${selectedOutreach.type?.replace('_', ' ')} in our industry.\n\nBest,\n${companyName}`;
+                                      const fullEmail = `Subject: ${subject}\n\n${body}`;
+                                      navigator.clipboard.writeText(fullEmail);
+                                      setCopiedItemId(`outreach-${selectedOutreach.id}`);
+                                    }}
                                     className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors relative group"
                                   >
-                                    <Copy className="w-5 h-5" />
+                                    {copiedItemId === `outreach-${selectedOutreach.id}` ? (
+                                      <Check className="w-5 h-5 text-green-600" />
+                                    ) : (
+                                      <Copy className="w-5 h-5" />
+                                    )}
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                      Copy email
+                                      {copiedItemId === `outreach-${selectedOutreach.id}` ? 'Copied!' : 'Copy email'}
                                     </div>
                                   </button>
                                   <button
@@ -1570,35 +1597,47 @@ export default function DashboardPage() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
-                                contact@{selectedOutreach.platform?.toLowerCase().replace(/\s+/g, '')}.com
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900 break-all">
+                                  {selectedOutreach.contactEmail || `contact@${selectedOutreach.platform?.toLowerCase().replace(/\s+/g, '')}.com`}
+                                </div>
+                                {(selectedOutreach as any).contactConfidence && (
+                                  <span className={`px-2 py-1 text-xs rounded-full ${
+                                    (selectedOutreach as any).contactConfidence === 'high' 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : (selectedOutreach as any).contactConfidence === 'medium'
+                                        ? 'bg-yellow-100 text-yellow-700'
+                                        : 'bg-neutral-100 text-neutral-500'
+                                  }`}>
+                                    {(selectedOutreach as any).contactConfidence}
+                                  </span>
+                                )}
                               </div>
                             </div>
+                            
+                            {/* Claim Context */}
+                            {(selectedOutreach as any).claimToEstablish && (
+                              <div>
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">Claim to Establish</label>
+                                <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+                                  {(selectedOutreach as any).claimToEstablish}
+                                </div>
+                              </div>
+                            )}
                             
                             {/* Subject */}
                             <div>
                               <label className="block text-xs font-medium text-neutral-500 mb-1">Subject Line</label>
                               <div className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900">
-                                Partnership inquiry from {companyName}
+                                {(selectedOutreach as any).subject || selectedOutreach.actions?.[0]?.replace('Subject: ', '') || `Partnership inquiry from ${companyName}`}
                               </div>
                             </div>
                             
                             {/* Email Body */}
                             <div>
                               <label className="block text-xs font-medium text-neutral-500 mb-1">Email Body</label>
-                              <div className="px-3 py-3 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-700 leading-relaxed">
-                                <p className="mb-3">Hey there,</p>
-                                <p className="mb-3">
-                                  I'm reaching out from {companyName}. I noticed your platform covers {selectedOutreach.type?.replace('_', ' ')} in our industry, and I'd love to explore how we could work together.
-                                </p>
-                                <p className="mb-3">
-                                  {selectedOutreach.reason}
-                                </p>
-                                <p className="mb-3">
-                                  Would you be open to a quick chat to discuss how {companyName} could be featured on {selectedOutreach.platform}?
-                                </p>
-                                <p className="mb-3">Best,</p>
-                                <p>Your Name</p>
+                              <div className="px-3 py-3 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">
+                                {(selectedOutreach as any).emailBody || selectedOutreach.reason || `Hey there,\n\nI'm reaching out from ${companyName}. We noticed your platform covers ${selectedOutreach.type?.replace('_', ' ')} in our industry.\n\nBest,\n${companyName}`}
                               </div>
                             </div>
                           </div>

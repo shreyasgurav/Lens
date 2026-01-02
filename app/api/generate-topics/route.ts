@@ -16,94 +16,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build context from scraped data
+    // Build context
     const featureContext = scrapedFeatures?.length 
-      ? `\nActual Product Features: ${scrapedFeatures.join(", ")}`
+      ? `\nKey Features: ${scrapedFeatures.slice(0, 6).join(", ")}`
       : "";
-    const keywordContext = scrapedKeywords?.length
-      ? `\nWebsite Keywords: ${scrapedKeywords.join(", ")}`
-      : "";
-    const categoryContext = category
-      ? `\nProduct Category: ${category}`
-      : "";
+    const categoryContext = category ? `\nCategory: ${category}` : "";
 
-    // Generate topics using OpenAI with richer context
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `Generate prompts that users ask AI assistants to DISCOVER and GET RECOMMENDATIONS for products.
+          content: `You are part of a Generative Engine Optimization (GEO) platform that helps brands appear in AI responses (ChatGPT, Perplexity, Gemini, Claude).
 
-THE ONE RULE:
-Every prompt must make AI respond with a LIST of recommended products/brands.
+YOUR ROLE:
+You are the first step in brand onboarding. Your job is to generate the exact search questions that potential customers type into AI assistants when they are looking for products, software, or services like this brand offers.
 
-User asks → AI responds with: "Here are some options: Product A, Product B, Product C..."
+WHY THIS MATTERS:
+These questions will be used to simulate AI responses and understand:
+- Which competitors currently appear for these searches
+- What claims competitors own in AI responses
+- Where this brand is missing from AI recommendations
+- What content and outreach is needed to improve visibility
 
-═══════════════════════════════════════
-VALID PROMPT TYPES (use these patterns)
-═══════════════════════════════════════
+YOUR TASK:
+Generate 10 realistic search questions that a potential customer would ask an AI assistant when they are:
+- Looking for a solution to a problem this brand solves
+- Searching for software/products in this category
+- Trying to find alternatives or recommendations
 
-1. RECOMMENDATION REQUESTS (40%)
-   "What's the best [product type] for [use case]?"
-   "Which [product type] would you recommend for [situation]?"
-   "Top [product type] for [specific need]?"
-   
-2. NEED/PROBLEM STATEMENTS (30%)
-   "I need a tool to [do something]"
-   "Looking for [product type] that can [capability]"
-   "I want to [achieve goal], what should I use?"
-   
-3. FEATURE-BASED DISCOVERY (20%)
-   "[Product type] with [specific feature]"
-   "[Product type] that integrates with [tool]"
-   "Free/affordable [product type] for [use case]"
-   
-4. ALTERNATIVE REQUESTS (10%)
-   "Alternatives to [FAMOUS well-known competitor only]"
-   "Something like [FAMOUS brand] but cheaper/better"
+THE CUSTOMER:
+- Does NOT know this brand exists yet
+- Is actively searching for a solution
+- Types naturally into ChatGPT like they're asking a friend
+- Wants recommendations, not tutorials
 
-═══════════════════════════════════════
-STRICT RULES
-═══════════════════════════════════════
+QUESTION STYLES (mix these):
+- "Best [software/product] for [use case]"
+- "What's a good [tool] for [task]?"
+- "I need a [product] that can [do something]"
+- "[Category] software for [industry/team]"
+- "Tool to help with [problem]"
+- "Alternatives to [well-known competitor]"
 
-- Generate EXACTLY 10 prompts
-- NEVER mention "${companyName}" - users don't know about it yet
-- NEVER mention any brand names EXCEPT in "alternatives to [famous brand]"
-- NO comparison questions like "X vs Y" or "How does X compare to Y"
-- NO questions about downsides/limitations
-- NO educational/tutorial questions
-- Every prompt = AI will list product recommendations
-- Sound like real humans (casual, conversational)
-- Mix short (5-8 words) and medium (10-15 words) prompts
-- Return ONLY a JSON array of strings
+STRICT RULES:
+- Generate EXACTLY 10 questions
+- NEVER mention "${companyName}" - the customer doesn't know it exists
+- Sound like a real person, not a marketer or analyst
+- Keep questions simple and natural (5-20 words each)
+- Focus on problems and use cases from the description
+- Brand names only allowed in "alternatives to X" style questions
+- No jargon, no buzzwords, no corporate language
 
-═══════════════════════════════════════
-❌ BAD - AI won't list products
-═══════════════════════════════════════
-- "Zoom vs Teams for meetings" (compares 2 specific products)
-- "What are downsides of AI meeting tools?" (lists downsides, not products)
-- "How does Notion compare to..." (asks about specific brand)
-- "Is Slack suitable for enterprise?" (asks about specific brand)
-- "What features make X stand out?" (asks about specific brand)
-
-═══════════════════════════════════════
-✅ GOOD - AI will list products
-═══════════════════════════════════════
-- "What's the best meeting assistant for remote teams?"
-- "I need a tool to automatically take meeting notes"
-- "Recommend a video conferencing tool for small teams"
-- "Meeting software with transcription features"
-- "Affordable project management tool for startups"
-- "Alternatives to Zoom for video calls"
-- "Looking for a CRM that integrates with Gmail"`,
+OUTPUT:
+Return ONLY a JSON array of 10 question strings. No explanations.`,
         },
         {
           role: "user",
-          content: `Company: ${companyName}
-Description: ${description}${categoryContext}${featureContext}${keywordContext}
+          content: `BRAND TO ONBOARD: ${companyName} (DO NOT mention this name in any question)
 
-Generate 10 prompts that users would ask AI to DISCOVER products like this. Each prompt should make AI respond with a list of product recommendations (where ${companyName} could potentially appear).`,
+WHAT THIS BRAND DOES:
+${description}
+${categoryContext}${featureContext}
+
+Generate 10 search questions that potential customers would type into ChatGPT when looking for a product/software like this. These questions will be used to simulate AI responses and analyze competitor visibility.`,
         },
       ],
       max_tokens: 600,
@@ -112,7 +88,6 @@ Generate 10 prompts that users would ask AI to DISCOVER products like this. Each
 
     const responseText = completion.choices[0]?.message?.content?.trim() || "[]";
     
-    // Parse the JSON array from the response
     let topics: string[] = [];
     try {
       const jsonMatch = responseText.match(/\[[\s\S]*\]/);
@@ -120,7 +95,6 @@ Generate 10 prompts that users would ask AI to DISCOVER products like this. Each
         topics = JSON.parse(jsonMatch[0]);
       }
     } catch {
-      // Fallback: split by newlines if JSON parsing fails
       topics = responseText
         .split("\n")
         .filter((line: string) => line.trim().length > 0)
@@ -129,20 +103,15 @@ Generate 10 prompts that users would ask AI to DISCOVER products like this. Each
         .slice(0, 10);
     }
 
-    // Validate and clean topics
+    // Filter out any that mention company name
+    const companyLower = companyName.toLowerCase();
     topics = topics
-      .filter((t: string) => typeof t === "string" && t.length > 5 && t.length < 100)
+      .filter((t: string) => typeof t === "string" && t.length > 5 && !t.toLowerCase().includes(companyLower))
       .slice(0, 10);
 
-    return NextResponse.json({
-      success: true,
-      topics,
-    });
+    return NextResponse.json({ success: true, topics });
   } catch (error) {
     console.error("Error generating topics:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to generate topics" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to generate topics" }, { status: 500 });
   }
 }

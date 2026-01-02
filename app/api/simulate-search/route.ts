@@ -47,41 +47,14 @@ export async function POST(request: NextRequest) {
     // Ensure competitors is an array
     const competitorsList = Array.isArray(competitors) ? competitors : [];
 
-    // Generate prompts for this topic
+    // Topics are already in question format from generate-topics, use directly
     const allBrands = [companyName, ...competitorsList];
     const results = [];
 
     console.log('Processing simulation for:', { query: topic, brandsCount: allBrands.length });
 
-    // Generate 1 natural question from this topic
-    const queryGeneration = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are a search query expert. Convert topics into natural questions that users would ask ChatGPT.
-
-Rules:
-- Make it conversational and natural
-- Focus on recommendations/comparisons
-- Keep it 10-20 words
-- Return ONLY the question, no explanation
-
-Examples:
-"AI meeting assistant" → "What are the best AI meeting assistants for professionals?"
-"Project management tools" → "Which project management tools should I use for my team?"
-"Email marketing software" → "What's the best email marketing software for small businesses?"`,
-        },
-        {
-          role: "user",
-          content: `Topic: ${topic}\n\nGenerate a natural search question:`,
-        },
-      ],
-      max_tokens: 50,
-      temperature: 0.3,
-    });
-
-    const query = queryGeneration.choices[0]?.message?.content?.trim() || topic;
+    // Use topic directly as query (already in question format)
+    const query = topic.trim();
 
     // Use Responses API with web_search_preview tool for real web search
     let responseCompletion;

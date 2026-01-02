@@ -76,12 +76,16 @@ interface OutreachRecommendation {
   type: 'review_site' | 'publication' | 'directory' | 'community';
   platform: string;
   url: string;
-  contactEmail?: string;
-  reason: string;
-  causalEvidence: { simulationsAppeared: number; competitorsPresent: string[]; claimsReinforced: string[]; };
+  contactEmail: string;
+  contactConfidence: 'high' | 'medium' | 'low';
+  contactSource: 'ai_discovered' | 'pattern' | 'contact_page';
+  subject: string;
+  emailBody: string;
+  claimToEstablish: string;
+  competitorsReinforcing: string[];
   confidence: ConfidenceScore;
   priority: 'critical' | 'high' | 'medium';
-  actions: string[];
+  completed?: boolean;
 }
 
 const THRESHOLDS = {
@@ -261,53 +265,63 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // STEP 7: Generate outreach
-    console.log(`\n=== STEP 7: Building outreach from ${observations.length} observations ===`);
-    const sourceAuth = new Map<string, { domain: string; sims: Set<number>; comps: Set<string>; claims: Set<string>; type: string }>();
-    for (const obs of observations) {
-      if (!obs.sourceDomain) continue;
-      if (!sourceAuth.has(obs.sourceDomain)) sourceAuth.set(obs.sourceDomain, { domain: obs.sourceDomain, sims: new Set(), comps: new Set(), claims: new Set(), type: classifySourceType(obs.sourceDomain) });
-      const entry = sourceAuth.get(obs.sourceDomain)!;
-      entry.sims.add(obs.promptIndex);
-      const isYours = obs.brand.toLowerCase() === yourBrand;
-      if (!isYours) entry.comps.add(obs.brand);
-    }
-    
-    console.log(`Total sources found: ${sourceAuth.size}`);
+    // STEP 7: Claim-driven outreach with AI-written emails
+    console.log(`\n=== STEP 7: Generating claim-driven outreach emails ===`);
     const outreachRecommendations: OutreachRecommendation[] = [];
     const actionableTypes = ['review_site', 'publication', 'directory', 'community'];
-    sourceAuth.forEach(source => {
-      const isActionableType = actionableTypes.includes(source.type);
-      const meetsSimThreshold = source.sims.size >= THRESHOLDS.MIN_OUTREACH_SIMULATIONS;
-      const meetsCompThreshold = source.comps.size >= THRESHOLDS.MIN_OUTREACH_COMPETITORS;
-      
-      console.log(`Source: ${source.domain}`);
-      console.log(`  Type: ${source.type} (actionable: ${isActionableType})`);
-      console.log(`  Simulations: ${source.sims.size} >= ${THRESHOLDS.MIN_OUTREACH_SIMULATIONS}? ${meetsSimThreshold}`);
-      console.log(`  Competitors: ${source.comps.size} >= ${THRESHOLDS.MIN_OUTREACH_COMPETITORS}? ${meetsCompThreshold}`);
-      
-      if (isActionableType && meetsSimThreshold && meetsCompThreshold) {
-        console.log(`  ✅ OUTREACH CANDIDATE`);
-        const conf = { promptConfidence: Math.min(100, (source.sims.size / totalPrompts) * 300), sourceConfidence: source.type === 'review_site' ? 90 : 60, competitivePressure: Math.min(100, source.comps.size * 30), final: 0, explanation: '' };
-        conf.final = Math.round(0.4 * conf.promptConfidence + 0.35 * conf.sourceConfidence + 0.25 * conf.competitivePressure);
-        conf.explanation = `Cited in ${source.sims.size} simulations with ${source.comps.size} competitors`;
+
+    for (const claim of actionableClaims) {
+      const claimConfidence = calculateConfidence(claim, totalPrompts);
+      if (claimConfidence.final < 40) continue; // Filter out weak outreach
+
+      for (const source of claim.sources) {
+        const sourceType = classifySourceType(source.domain);
+        if (!actionableTypes.includes(sourceType)) continue;
+
+        const competitors = claim.competitors
+          .sort((a, b) => b.mentions - a.mentions)
+          .slice(0, 3)
+          .map(c => c.brand);
+
+        if (!competitors.length) continue;
+
+        console.log(`Generating outreach for ${source.domain} (${sourceType}) - Claim: "${claim.label.substring(0, 50)}..."`);
+
+        // 1. Discover contact with confidence
+        const contact = await discoverContact(source.domain, sourceType);
         
+        // 2. Generate claim-first subject line
+        const subject = generateEmailSubject(claim.label, source.domain, sourceType);
+        
+        // 3. Generate LLM-written email body
+        const emailBody = await generateOutreachEmail({
+          brand: companyName,
+          platform: source.domain,
+          claim: claim.label,
+          competitors,
+          sourceType,
+        });
+
         outreachRecommendations.push({
           id: `outreach-${outreachRecommendations.length}`,
-          type: source.type as any,
+          type: sourceType as any,
           platform: source.domain,
-          url: `https://${source.domain}`,
-          contactEmail: generateContactEmail(source.domain, source.type),
-          reason: `Cited ${source.sims.size}× across simulations. ${Array.from(source.comps).slice(0, 2).join(', ')} are present here.`,
-          causalEvidence: { simulationsAppeared: source.sims.size, competitorsPresent: Array.from(source.comps), claimsReinforced: [] },
-          confidence: conf,
-          priority: conf.final >= 60 ? 'critical' : conf.final >= 40 ? 'high' : 'medium',
-          actions: generateActions(source.type, source.domain, companyName),
+          url: source.url || `https://${source.domain}`,
+          contactEmail: contact.email,
+          contactConfidence: contact.confidence,
+          contactSource: contact.source,
+          subject,
+          emailBody,
+          claimToEstablish: claim.label,
+          competitorsReinforcing: competitors,
+          confidence: claimConfidence,
+          priority:
+            claimConfidence.final >= 65 ? 'critical' :
+            claimConfidence.final >= 45 ? 'high' : 'medium',
         });
-      } else {
-        console.log(`  ❌ FILTERED OUT`);
       }
-    });
+    }
+
     outreachRecommendations.sort((a, b) => b.confidence.final - a.confidence.final);
 
     console.log(`\n=== FINAL RESULTS ===`);
@@ -436,26 +450,188 @@ function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: 
   return content;
 }
 
-function generateContactEmail(domain: string, type: string): string {
-  // Common contact patterns for different source types
-  const baseDomain = domain.replace(/^www\./, '');
-  
-  if (type === 'review_site') {
-    // Review sites often have partnerships/business emails
-    return `partnerships@${baseDomain}`;
-  } else if (type === 'publication') {
-    // Publications typically use editorial/tips emails
-    return `editorial@${baseDomain}`;
-  } else if (type === 'directory') {
-    // Directories use submissions/listings emails
-    return `submit@${baseDomain}`;
-  } else if (type === 'community') {
-    // Communities use hello/contact
-    return `hello@${baseDomain}`;
+interface ContactDiscovery {
+  email: string;
+  confidence: 'high' | 'medium' | 'low';
+  source: 'ai_discovered' | 'pattern' | 'contact_page';
+}
+
+async function discoverContact(domain: string, type: string): Promise<ContactDiscovery> {
+  try {
+    const res = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0,
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'system',
+          content: `You find public outreach contacts for websites.
+
+RULES:
+- Only return emails you are confident exist (e.g., from common patterns for known sites)
+- If unsure, say "CONTACT_PAGE"
+- Never invent emails
+- Format: EMAIL: address@domain.com OR CONTACT_PAGE`
+        },
+        {
+          role: 'user',
+          content: `Website: ${domain}
+Type: ${type}
+
+Find the most appropriate public contact email for ${type === 'publication' ? 'editorial/contributor inquiries' : type === 'review_site' ? 'business partnerships' : type === 'directory' ? 'listing submissions' : 'general contact'}.`
+        }
+      ]
+    });
+
+    const text = res.choices[0].message.content?.trim() || '';
+    
+    // Check if AI found a real email
+    const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch && !text.includes('CONTACT_PAGE')) {
+      return {
+        email: emailMatch[1],
+        confidence: 'high',
+        source: 'ai_discovered'
+      };
+    }
+
+    // AI said contact page - return URL with low confidence
+    if (text.includes('CONTACT_PAGE') || !emailMatch) {
+      return {
+        email: `https://${domain}/contact`,
+        confidence: 'low',
+        source: 'contact_page'
+      };
+    }
+
+    return {
+      email: `https://${domain}/contact`,
+      confidence: 'low',
+      source: 'contact_page'
+    };
+  } catch (error) {
+    console.error(`Error discovering contact for ${domain}:`, error);
+    // Fallback to deterministic patterns - medium confidence
+    const baseDomain = domain.replace(/^www\./, '');
+    let email: string;
+    
+    if (type === 'review_site') {
+      email = `partnerships@${baseDomain}`;
+    } else if (type === 'publication') {
+      email = `editorial@${baseDomain}`;
+    } else if (type === 'directory') {
+      email = `submit@${baseDomain}`;
+    } else if (type === 'community') {
+      email = `hello@${baseDomain}`;
+    } else {
+      email = `https://${domain}/contact`;
+      return { email, confidence: 'low', source: 'contact_page' };
+    }
+    
+    return {
+      email,
+      confidence: 'medium',
+      source: 'pattern'
+    };
   }
+}
+
+function generateEmailSubject(claim: string, platform: string, type: string): string {
+  // Claim-first, deterministic subject lines based on source type
+  const shortClaim = claim.length > 50 ? claim.substring(0, 50) + '...' : claim;
   
-  // Default fallback
-  return `contact@${baseDomain}`;
+  if (type === 'publication') {
+    return `Inclusion request: ${shortClaim}`;
+  } else if (type === 'review_site') {
+    return `Coverage update: ${shortClaim}`;
+  } else if (type === 'directory') {
+    return `Listing request: ${shortClaim}`;
+  } else {
+    return `Context for ${shortClaim} coverage on ${platform}`;
+  }
+}
+
+async function generateOutreachEmail({ 
+  brand, 
+  platform, 
+  claim, 
+  competitors,
+  sourceType 
+}: { 
+  brand: string; 
+  platform: string; 
+  claim: string; 
+  competitors: string[];
+  sourceType: string;
+}): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      max_tokens: 350,
+      messages: [
+        {
+          role: 'system',
+          content: `You write neutral, professional outreach emails to editors and content managers.
+
+ABSOLUTE RULES:
+- 4-6 sentences maximum
+- Neutral, factual tone
+- No marketing language
+- No begging or desperation
+- No exaggeration
+- No "I hope this finds you well"
+- No CTAs like "Let me know if..."
+- Short sentences only
+
+STRUCTURE:
+1. State WHY this site matters (AI cites it)
+2. State WHAT competitors are already covered
+3. State WHAT your brand does (same criteria)
+4. State WHY inclusion makes sense (factual relevance)
+5. Simple sign-off
+
+GOAL:
+Request inclusion based on factual relevance, not persuasion.`
+        },
+        {
+          role: 'user',
+          content: `Platform: ${platform} (${sourceType})
+Claim being discussed: "${claim}"
+Competitors already cited: ${competitors.join(', ')}
+Brand requesting inclusion: ${brand}
+
+Write the outreach email body only (no subject line, no greeting like "Dear Editor").
+Start directly with the content.`
+        }
+      ]
+    });
+
+    const emailBody = completion.choices[0].message.content?.trim();
+    
+    if (emailBody) {
+      return `Hi there,\n\n${emailBody}\n\nBest,\n${brand}`;
+    }
+    
+    // Fallback to template if LLM fails
+    return generateFallbackEmail(brand, platform, claim, competitors);
+  } catch (error) {
+    console.error(`Error generating outreach email:`, error);
+    return generateFallbackEmail(brand, platform, claim, competitors);
+  }
+}
+
+function generateFallbackEmail(brand: string, platform: string, claim: string, competitors: string[]): string {
+  return `Hi there,
+
+AI assistants frequently reference ${platform} when users ask about "${claim}".
+
+In those responses, ${competitors.join(', ')} are commonly cited. ${brand} addresses the same decision criteria but is not currently represented.
+
+We can provide neutral, factual context for your coverage.
+
+Best,
+${brand}`;
 }
 
 function generateActions(type: string, domain: string, brand: string): string[] {
