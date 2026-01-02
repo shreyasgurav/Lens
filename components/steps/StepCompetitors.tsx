@@ -132,11 +132,11 @@ export default function StepCompetitors() {
         </div>
 
         {/* Competitors List - Wider cards with favicon, name, website */}
-        <div className="flex flex-wrap gap-3 max-h-96 overflow-y-auto">
+        <div className="flex flex-wrap gap-3 max-h-96 overflow-y-auto justify-center">
           {competitors.map((comp) => (
             <div
               key={comp.id}
-              className="flex items-center gap-3 px-4 py-3 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors group min-w-[200px]"
+              className="flex items-center gap-3 px-4 py-3 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors group min-w-[240px]"
             >
               {/* Favicon on left */}
               {comp.favicon ? (
