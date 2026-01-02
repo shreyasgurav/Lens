@@ -90,7 +90,8 @@ interface OutreachRecommendation {
 
 const THRESHOLDS = {
   MIN_PROMPT_SUPPORT: 1,         // Lowered to 1 - with only 3 simulations, claims rarely appear 2+ times
-  MIN_SOURCE_SUPPORT: 1,         // Lowered to 1 - need at least 1 source to be grounded
+  MIN_SOURCE_SUPPORT: 0,         // Set to 0 - content can be generated without sources (sources only required for outreach)
+  MIN_SOURCE_FOR_OUTREACH: 1,    // Outreach still needs at least 1 source to contact
   MIN_COMPETITOR_SUPPORT: 1,
   MIN_OUTREACH_SIMULATIONS: 1,
   MIN_OUTREACH_COMPETITORS: 1,
@@ -216,24 +217,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // STEP 5: Filter actionable
+    // STEP 5: Filter actionable claims for CONTENT generation
+    // Note: We generate content for ALL claims competitors own (even if your brand is mentioned)
+    // This helps you reinforce/establish your position on key claims
     const actionableClaims: TriangulatedClaim[] = [];
-    console.log(`\n=== STEP 5: Filtering ${triangulatedClaims.size} claims ===`);
+    console.log(`\n=== STEP 5: Filtering ${triangulatedClaims.size} claims for content ===`);
     triangulatedClaims.forEach(claim => {
       const meetsPrompt = claim.promptSupport >= THRESHOLDS.MIN_PROMPT_SUPPORT;
-      const meetsSource = claim.sourceSupport >= THRESHOLDS.MIN_SOURCE_SUPPORT;
       const meetsCompetitor = claim.competitorSupport >= THRESHOLDS.MIN_COMPETITOR_SUPPORT;
-      const notYours = claim.yourBrandSupport === 0;
+      // For content: we DON'T require sources or exclude your brand
+      // We want to generate content about claims AI discusses, whether you're mentioned or not
       
       console.log(`Claim: "${claim.label.substring(0, 50)}..."`);
       console.log(`  Prompt: ${claim.promptSupport} >= ${THRESHOLDS.MIN_PROMPT_SUPPORT}? ${meetsPrompt}`);
-      console.log(`  Source: ${claim.sourceSupport} >= ${THRESHOLDS.MIN_SOURCE_SUPPORT}? ${meetsSource}`);
+      console.log(`  Sources: ${claim.sourceSupport} (for info only, not required for content)`);
       console.log(`  Competitor: ${claim.competitorSupport} >= ${THRESHOLDS.MIN_COMPETITOR_SUPPORT}? ${meetsCompetitor}`);
-      console.log(`  Not yours: ${notYours}`);
+      console.log(`  Your brand mentions: ${claim.yourBrandSupport}`);
       
-      if (meetsPrompt && meetsSource && meetsCompetitor && notYours) {
+      if (meetsPrompt && meetsCompetitor) {
         actionableClaims.push(claim);
-        console.log(`  ✅ ACTIONABLE`);
+        console.log(`  ✅ ACTIONABLE for content`);
       } else {
         console.log(`  ❌ FILTERED OUT`);
       }
@@ -250,6 +253,12 @@ export async function POST(request: NextRequest) {
       const topComp = claim.competitors.sort((a, b) => b.mentions - a.mentions)[0];
       const highIntent = claim.prompts.filter(p => p.promptType === 'high_intent' || p.promptType === 'comparison').length;
       const confidence = calculateConfidence(claim, totalPrompts);
+      const isYourBrandMentioned = claim.yourBrandSupport > 0;
+      
+      // Different messaging based on whether your brand is already mentioned
+      const whyAISaysThis = isYourBrandMentioned
+        ? `AI already mentions you for "${claim.label}" (${claim.yourBrandSupport}×). ${topComp?.brand || 'Competitors'} are mentioned ${topComp?.mentions || 0}×. Create content to reinforce your position.`
+        : `AI associates "${claim.label}" with ${topComp?.brand || 'competitors'} (${topComp?.mentions || 0}×). You're not mentioned. Create content to establish your position on this claim.`;
       
       contentRecommendations.push({
         id: `content-${i}`,
@@ -257,22 +266,27 @@ export async function POST(request: NextRequest) {
         claimType: claim.claimType,
         confidence,
         causalEvidence: { promptsAffected: claim.promptSupport, highIntentPrompts: highIntent, sourceDomains: claim.sourceSupport, topCompetitor: topComp?.brand || 'competitors', topCompetitorMentions: topComp?.mentions || 0 },
-        whyAISaysThis: `AI associates "${claim.label}" with ${topComp?.brand || 'competitors'} because ${claim.sourceSupport} sources reinforce this. You're missing because no sources make this claim about you.`,
-        evidenceSummary: `${Math.round((claim.promptSupport / totalPrompts) * 100)}% of prompts • ${claim.sourceSupport} sources • ${topComp?.brand} mentioned ${topComp?.mentions}×`,
+        whyAISaysThis,
+        evidenceSummary: `${Math.round((claim.promptSupport / totalPrompts) * 100)}% of prompts • ${claim.sourceSupport} sources • ${isYourBrandMentioned ? 'You: ' + claim.yourBrandSupport + '× • ' : ''}${topComp?.brand} ${topComp?.mentions}×`,
         triangulation: { prompts: claim.prompts.slice(0, 5).map(p => p.query), sources: claim.sources.slice(0, 5).map(s => s.domain), competitors: claim.competitors.slice(0, 3).map(c => c.brand) },
-        recommendedContent: generateContent(claim, companyName, topComp),
+        recommendedContent: generateContent(claim, companyName, topComp, isYourBrandMentioned),
         priority: confidence.final >= 60 ? 'critical' : confidence.final >= 40 ? 'high' : confidence.final >= 20 ? 'medium' : 'weak_signal',
       });
     }
 
     // STEP 7: Claim-driven outreach with AI-written emails
+    // Note: Outreach REQUIRES sources (we need someone to contact)
     console.log(`\n=== STEP 7: Generating claim-driven outreach emails ===`);
     const outreachRecommendations: OutreachRecommendation[] = [];
     const actionableTypes = ['review_site', 'publication', 'directory', 'community'];
+    
+    // Filter claims that have sources for outreach
+    const claimsWithSources = actionableClaims.filter(c => c.sourceSupport >= THRESHOLDS.MIN_SOURCE_FOR_OUTREACH);
+    console.log(`Claims with sources for outreach: ${claimsWithSources.length}/${actionableClaims.length}`);
 
-    for (const claim of actionableClaims) {
+    for (const claim of claimsWithSources) {
       const claimConfidence = calculateConfidence(claim, totalPrompts);
-      if (claimConfidence.final < 40) continue; // Filter out weak outreach
+      if (claimConfidence.final < 30) continue; // Lowered threshold since we have fewer claims
 
       for (const source of claim.sources) {
         const sourceType = classifySourceType(source.domain);
@@ -391,7 +405,7 @@ function calculateConfidence(claim: TriangulatedClaim, total: number): Confidenc
   return { promptConfidence: Math.round(prompt), sourceConfidence: Math.round(source), competitivePressure: Math.round(competitive), final, explanation: `${claim.promptSupport} prompts, ${claim.sourceSupport} sources, ${claim.competitors.length} competitors` };
 }
 
-function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: string; mentions: number } | undefined): ContentRecommendation['recommendedContent'] {
+function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: string; mentions: number } | undefined, isYourBrandMentioned: boolean = false): ContentRecommendation['recommendedContent'] {
   const label = claim.label.charAt(0).toUpperCase() + claim.label.slice(1);
   const topCompetitor = top?.brand || claim.competitors[0]?.brand || 'Alternatives';
   const content: ContentRecommendation['recommendedContent'] = [];
@@ -401,7 +415,12 @@ function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: 
   let contentType: 'blog' | 'comparison' | 'use_case_page' = 'blog';
   let reason: string;
   
-  if (claim.claimType === 'differentiator') {
+  if (isYourBrandMentioned) {
+    // Your brand is already mentioned - content to REINFORCE position
+    h1Title = `Why ${brand} excels at ${claim.label.toLowerCase()}`;
+    contentType = 'blog';
+    reason = 'You\'re already mentioned for this claim - reinforce your position with dedicated content';
+  } else if (claim.claimType === 'differentiator') {
     // Differentiator: Declarative claim about what brand offers
     h1Title = `${brand} offers ${claim.label.toLowerCase()}`;
     contentType = 'comparison';
@@ -419,24 +438,15 @@ function generateContent(claim: TriangulatedClaim, brand: string, top: { brand: 
   }
   
   // Build structured outline optimized for LLM citation
-  // Note: After H1, include AI summary sentence: "This article explains why {Brand} is recommended when {claim} matters."
-  // Note: Intro paragraph (2-3 sentences) comes after H1 and AI summary sentence, before first section
   const outline: string[] = [
-    // 1. H1 title (declarative claim) - set above
-    // 2. AI summary sentence: "This article explains why {Brand} is recommended when {claim} matters." (content guidance, not a heading)
-    // 3. Intro paragraph (2-3 sentences) - content guidance, not a heading
-    // 4. At a glance section (bullets: Problem, What most tools do, What brand does differently, Best for)
     `At a glance: ${claim.label}`,
-    // 5. Comparison section (decision criteria, not feature lists)
     `How ${brand} compares to ${topCompetitor}`,
-    // 6. When to choose section (conditional logic bullets)
     `When to choose ${brand}`,
-    // 7. Why AI recommends section (matches AI's internal reasoning language)
     'Why AI recommends this',
   ];
   
   // Add optional "Switching from" section for differentiator/comparison content
-  if (claim.claimType === 'differentiator' && top?.brand) {
+  if (claim.claimType === 'differentiator' && top?.brand && !isYourBrandMentioned) {
     outline.push(`Switching from ${top.brand}`);
   }
   
@@ -468,10 +478,10 @@ async function discoverContact(domain: string, type: string): Promise<ContactDis
           content: `You find public outreach contacts for websites.
 
 RULES:
-- Only return emails you are confident exist (e.g., from common patterns for known sites)
-- If unsure, say "CONTACT_PAGE"
-- Never invent emails
-- Format: EMAIL: address@domain.com OR CONTACT_PAGE`
+- Only return emails you are CERTAIN exist from your knowledge
+- If unsure or unknown, say "NOT_FOUND"
+- Never invent or guess emails
+- Format: EMAIL: address@domain.com OR NOT_FOUND`
         },
         {
           role: 'user',
@@ -487,7 +497,7 @@ Find the most appropriate public contact email for ${type === 'publication' ? 'e
     
     // Check if AI found a real email
     const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    if (emailMatch && !text.includes('CONTACT_PAGE')) {
+    if (emailMatch && !text.includes('NOT_FOUND')) {
       return {
         email: emailMatch[1],
         confidence: 'high',
@@ -495,43 +505,19 @@ Find the most appropriate public contact email for ${type === 'publication' ? 'e
       };
     }
 
-    // AI said contact page - return URL with low confidence
-    if (text.includes('CONTACT_PAGE') || !emailMatch) {
-      return {
-        email: `https://${domain}/contact`,
-        confidence: 'low',
-        source: 'contact_page'
-      };
-    }
-
+    // AI couldn't find email - return "Not found" with contact page link
     return {
-      email: `https://${domain}/contact`,
+      email: 'Not found - check contact page',
       confidence: 'low',
       source: 'contact_page'
     };
   } catch (error) {
     console.error(`Error discovering contact for ${domain}:`, error);
-    // Fallback to deterministic patterns - medium confidence
-    const baseDomain = domain.replace(/^www\./, '');
-    let email: string;
-    
-    if (type === 'review_site') {
-      email = `partnerships@${baseDomain}`;
-    } else if (type === 'publication') {
-      email = `editorial@${baseDomain}`;
-    } else if (type === 'directory') {
-      email = `submit@${baseDomain}`;
-    } else if (type === 'community') {
-      email = `hello@${baseDomain}`;
-    } else {
-      email = `https://${domain}/contact`;
-      return { email, confidence: 'low', source: 'contact_page' };
-    }
-    
+    // On error, return "Not found" - don't make up emails
     return {
-      email,
-      confidence: 'medium',
-      source: 'pattern'
+      email: 'Not found - check contact page',
+      confidence: 'low',
+      source: 'contact_page'
     };
   }
 }

@@ -1525,8 +1525,8 @@ export default function DashboardPage() {
                             <p className="text-sm font-medium text-neutral-900">
                               {rec.platform}
                             </p>
-                            <p className="text-xs text-neutral-500">
-                              {rec.contactEmail || `contact@${rec.platform?.toLowerCase().replace(/\s+/g, '')}`}
+                            <p className={`text-xs ${rec.contactEmail?.includes('Not found') ? 'text-amber-500' : 'text-neutral-500'}`}>
+                              {rec.contactEmail?.includes('Not found') ? 'Contact not found' : (rec.contactEmail || 'Contact not found')}
                             </p>
                           </div>
                           {rec.completed && (
@@ -1598,10 +1598,24 @@ export default function DashboardPage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900 break-all">
-                                  {selectedOutreach.contactEmail || `contact@${selectedOutreach.platform?.toLowerCase().replace(/\s+/g, '')}.com`}
-                                </div>
-                                {(selectedOutreach as any).contactConfidence && (
+                                {selectedOutreach.contactEmail?.includes('Not found') ? (
+                                  <div className="flex-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
+                                    <span>Contact not found</span>
+                                    <a 
+                                      href={`https://${selectedOutreach.platform}/contact`} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-amber-600 underline hover:text-amber-800"
+                                    >
+                                      Visit contact page →
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <div className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900 break-all">
+                                    {selectedOutreach.contactEmail || 'Contact not found'}
+                                  </div>
+                                )}
+                                {(selectedOutreach as any).contactConfidence && !selectedOutreach.contactEmail?.includes('Not found') && (
                                   <span className={`px-2 py-1 text-xs rounded-full ${
                                     (selectedOutreach as any).contactConfidence === 'high' 
                                       ? 'bg-green-100 text-green-700' 
