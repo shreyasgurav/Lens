@@ -1379,7 +1379,7 @@ export default function DashboardPage() {
                                   {copiedItemId === `content-${selectedContent.id}` ? (
                                     <Check className="w-5 h-5 text-green-600" />
                                   ) : (
-                                    <Copy className="w-5 h-5" />
+                                  <Copy className="w-5 h-5" />
                                   )}
                                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                     {copiedItemId === `content-${selectedContent.id}` ? 'Copied!' : 'Copy blog'}
@@ -1576,7 +1576,7 @@ export default function DashboardPage() {
                                     {copiedItemId === `outreach-${selectedOutreach.id}` ? (
                                       <Check className="w-5 h-5 text-green-600" />
                                     ) : (
-                                      <Copy className="w-5 h-5" />
+                                    <Copy className="w-5 h-5" />
                                     )}
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-neutral-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                       {copiedItemId === `outreach-${selectedOutreach.id}` ? 'Copied!' : 'Copy email'}
@@ -1628,16 +1628,6 @@ export default function DashboardPage() {
                                 )}
                               </div>
                             </div>
-                            
-                            {/* Claim Context */}
-                            {(selectedOutreach as any).claimToEstablish && (
-                              <div>
-                                <label className="block text-xs font-medium text-neutral-500 mb-1">Claim to Establish</label>
-                                <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
-                                  {(selectedOutreach as any).claimToEstablish}
-                                </div>
-                              </div>
-                            )}
                             
                             {/* Subject */}
                             <div>
