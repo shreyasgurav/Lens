@@ -110,12 +110,29 @@ export async function POST(request: NextRequest) {
     const totalPrompts = simulationResults.length;
     console.log('=== EXTRACT CLAIMS V2 ===', { companyName, totalPrompts });
 
-    // STEP 1: Build observations
+    // STEP 1: Build observations AND collect ALL sources for outreach
     const observations: Observation[] = [];
+    const allSourcesMap = new Map<string, { url: string; domain: string; simulationCount: number; competitors: Set<string>; prompts: Set<string> }>();
+    
     for (let i = 0; i < simulationResults.length; i++) {
       const result = simulationResults[i];
       const sources = result.sources || [];
       const contentType = classifyContentType(result.query);
+      const brands = (result.mentionedBrands || []).map((b: any) => b.name);
+      
+      // Collect ALL sources for outreach purposes
+      for (const source of sources) {
+        try {
+          const domain = new URL(source.url).hostname.replace('www.', '');
+          const existing = allSourcesMap.get(domain) || { url: source.url, domain, simulationCount: 0, competitors: new Set(), prompts: new Set() };
+          existing.simulationCount++;
+          existing.prompts.add(result.query);
+          brands.forEach((b: string) => {
+            if (b.toLowerCase() !== yourBrand) existing.competitors.add(b);
+          });
+          allSourcesMap.set(domain, existing);
+        } catch {}
+      }
       
       for (const brand of (result.mentionedBrands || [])) {
         if (sources.length > 0) {
@@ -130,6 +147,8 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+    
+    console.log(`Collected ${allSourcesMap.size} unique sources from all simulations`);
 
     // STEP 2: Extract claims
     const claimObservations: ClaimObservation[] = [];
@@ -274,66 +293,85 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // STEP 7: Claim-driven outreach with AI-written emails
-    // Note: Outreach REQUIRES sources (we need someone to contact)
-    console.log(`\n=== STEP 7: Generating claim-driven outreach emails ===`);
+    // STEP 7: Source-driven outreach with AI-written emails
+    // Use ALL sources collected from simulations, not just those attached to specific claims
+    console.log(`\n=== STEP 7: Generating source-driven outreach emails ===`);
     const outreachRecommendations: OutreachRecommendation[] = [];
     const actionableTypes = ['review_site', 'publication', 'directory', 'community'];
     
-    // Filter claims that have sources for outreach
-    const claimsWithSources = actionableClaims.filter(c => c.sourceSupport >= THRESHOLDS.MIN_SOURCE_FOR_OUTREACH);
-    console.log(`Claims with sources for outreach: ${claimsWithSources.length}/${actionableClaims.length}`);
-
-    for (const claim of claimsWithSources) {
-      const claimConfidence = calculateConfidence(claim, totalPrompts);
-      if (claimConfidence.final < 30) continue; // Lowered threshold since we have fewer claims
-
-      for (const source of claim.sources) {
-        const sourceType = classifySourceType(source.domain);
-        if (!actionableTypes.includes(sourceType)) continue;
-
-        const competitors = claim.competitors
-          .sort((a, b) => b.mentions - a.mentions)
-          .slice(0, 3)
-          .map(c => c.brand);
-
-        if (!competitors.length) continue;
-
-        console.log(`Generating outreach for ${source.domain} (${sourceType}) - Claim: "${claim.label.substring(0, 50)}..."`);
-
-        // 1. Discover contact with confidence
-        const contact = await discoverContact(source.domain, sourceType);
-        
-        // 2. Generate claim-first subject line
-        const subject = generateEmailSubject(claim.label, source.domain, sourceType);
-        
-        // 3. Generate LLM-written email body
-        const emailBody = await generateOutreachEmail({
-          brand: companyName,
-          platform: source.domain,
-          claim: claim.label,
-          competitors,
-          sourceType,
-        });
-
-        outreachRecommendations.push({
-          id: `outreach-${outreachRecommendations.length}`,
-          type: sourceType as any,
-          platform: source.domain,
-          url: source.url || `https://${source.domain}`,
-          contactEmail: contact.email,
-          contactConfidence: contact.confidence,
-          contactSource: contact.source,
-          subject,
-          emailBody,
-          claimToEstablish: claim.label,
-          competitorsReinforcing: competitors,
-          confidence: claimConfidence,
-          priority:
-            claimConfidence.final >= 65 ? 'critical' :
-            claimConfidence.final >= 45 ? 'high' : 'medium',
-        });
+    // Process all sources from simulations
+    console.log(`Processing ${allSourcesMap.size} unique sources for outreach...`);
+    
+    for (const [domain, sourceData] of allSourcesMap) {
+      const sourceType = classifySourceType(domain);
+      
+      console.log(`Source: ${domain}`);
+      console.log(`  Type: ${sourceType} (actionable: ${actionableTypes.includes(sourceType)})`);
+      console.log(`  Simulations: ${sourceData.simulationCount}`);
+      console.log(`  Competitors cited: ${sourceData.competitors.size}`);
+      
+      if (!actionableTypes.includes(sourceType)) {
+        console.log(`  ❌ FILTERED OUT - not actionable type`);
+        continue;
       }
+      
+      const competitors = Array.from(sourceData.competitors).slice(0, 5);
+      if (competitors.length === 0) {
+        console.log(`  ❌ FILTERED OUT - no competitors found`);
+        continue;
+      }
+      
+      console.log(`  ✅ GENERATING OUTREACH`);
+      
+      // Find the most relevant claim for this source
+      const relevantClaim = actionableClaims.length > 0 
+        ? actionableClaims[0].label 
+        : 'AI visibility and recommendations';
+
+      // 1. Discover contact with confidence
+      const contact = await discoverContact(domain, sourceType);
+      
+      // 2. Generate subject line
+      const subject = generateEmailSubject(relevantClaim, domain, sourceType);
+      
+      // 3. Generate LLM-written email body
+      const emailBody = await generateOutreachEmail({
+        brand: companyName,
+        platform: domain,
+        claim: relevantClaim,
+        competitors,
+        sourceType,
+      });
+
+      // Calculate confidence based on source prominence
+      const confidence: ConfidenceScore = {
+        promptConfidence: Math.min(100, sourceData.simulationCount * 40),
+        sourceConfidence: 70, // Already a real source
+        competitivePressure: Math.min(100, competitors.length * 20),
+        final: Math.min(100, 40 + sourceData.simulationCount * 15 + competitors.length * 5),
+        explanation: `Cited in ${sourceData.simulationCount} simulations, ${competitors.length} competitors mentioned`,
+      };
+
+      outreachRecommendations.push({
+        id: `outreach-${outreachRecommendations.length}`,
+        type: sourceType as any,
+        platform: domain,
+        url: sourceData.url,
+        contactEmail: contact.email,
+        contactConfidence: contact.confidence,
+        contactSource: contact.source,
+        subject,
+        emailBody,
+        claimToEstablish: relevantClaim,
+        competitorsReinforcing: competitors,
+        confidence,
+        priority:
+          confidence.final >= 70 ? 'critical' :
+          confidence.final >= 50 ? 'high' : 'medium',
+      });
+      
+      // Limit to max recommendations
+      if (outreachRecommendations.length >= THRESHOLDS.MAX_OUTREACH_RECOMMENDATIONS) break;
     }
 
     outreachRecommendations.sort((a, b) => b.confidence.final - a.confidence.final);
@@ -372,20 +410,56 @@ function classifyContentType(q: string): 'list' | 'comparison' | 'review' | 'gen
 function classifySourceType(d: string): string {
   const l = d.toLowerCase();
   
-  // Review sites
-  if (['g2.com', 'capterra.com', 'trustradius.com', 'getapp.com', 'softwareadvice.com', 'trustpilot.com'].some(s => l.includes(s))) return 'review_site';
+  // Review sites (expanded)
+  const reviewSites = [
+    'g2.com', 'capterra.com', 'trustradius.com', 'getapp.com', 'softwareadvice.com', 
+    'trustpilot.com', 'gartner.com', 'sourceforge.net', 'crozdesk.com', 'serchen.com',
+    'reviews.com', 'pcmag.com', 'tomsguide.com', 'techradar.com', 'cnet.com'
+  ];
+  if (reviewSites.some(s => l.includes(s))) return 'review_site';
   
-  // Publications & blogs (broader definition)
-  if (['techcrunch.com', 'forbes.com', 'wired.com', 'theverge.com', 'venturebeat.com', 'zdnet.com', 'cnet.com', 'lifewire.com', 'thebrandhopper.com', 'aiapps.com', 'reelmind.ai'].some(s => l.includes(s))) return 'publication';
+  // Publications, news & blogs (expanded)
+  const publications = [
+    'techcrunch.com', 'forbes.com', 'wired.com', 'theverge.com', 'venturebeat.com', 
+    'zdnet.com', 'lifewire.com', 'thebrandhopper.com', 'aiapps.com', 'reelmind.ai',
+    'businessinsider.com', 'entrepreneur.com', 'inc.com', 'fastcompany.com',
+    'mashable.com', 'engadget.com', 'arstechnica.com', 'thenextweb.com', 'sifted.eu',
+    'prnewswire.com', 'businesswire.com', 'prweb.com', 'globenewswire.com',
+    'inman.com', 'bisnow.com', 'costar.com', 'propmodo.com', // Real estate specific
+    'builderonline.com', 'nahb.org', // Builder specific
+    'hbsdealer.com', 'housingwire.com', 'rismedia.com' // Housing/RE news
+  ];
+  if (publications.some(s => l.includes(s))) return 'publication';
   
-  // Directories & comparison sites
-  if (['producthunt.com', 'alternativeto.net', 'slant.co', 'stackshare.io', 'saasworthy.com', 'zapier.com', 'appliedai.tools', 'votars.ai'].some(s => l.includes(s))) return 'directory';
+  // Directories & comparison sites (expanded)
+  const directories = [
+    'producthunt.com', 'alternativeto.net', 'slant.co', 'stackshare.io', 'saasworthy.com', 
+    'zapier.com', 'appliedai.tools', 'votars.ai', 'betalist.com', 'startupstash.com',
+    'crunchbase.com', 'angel.co', 'wellfound.com', 'f6s.com', 'ycombinator.com',
+    'saashub.com', 'softwaresuggest.com', 'financesonline.com', 'comparably.com',
+    'selectsoftwarereviews.com', 'slashdot.org'
+  ];
+  if (directories.some(s => l.includes(s))) return 'directory';
   
-  // Communities
-  if (['reddit.com', 'medium.com', 'quora.com', 'dev.to', 'stackoverflow.com'].some(s => l.includes(s))) return 'community';
+  // Communities & social (expanded)
+  const communities = [
+    'reddit.com', 'medium.com', 'quora.com', 'dev.to', 'stackoverflow.com',
+    'hackernews.com', 'news.ycombinator.com', 'twitter.com', 'x.com', 'linkedin.com',
+    'facebook.com', 'youtube.com', 'discord.com', 'slack.com', 'substack.com',
+    'hashnode.dev', 'indiehackers.com', 'lobste.rs'
+  ];
+  if (communities.some(s => l.includes(s))) return 'community';
   
-  // Official product sites and documentation (treat as publication for outreach purposes)
-  if (l.includes('blog') || l.includes('news') || l.includes('help') || l.includes('support') || l.includes('docs')) return 'publication';
+  // Check for blog/news/help in URL path (treat as potential publication)
+  if (l.includes('blog') || l.includes('news') || l.includes('/reviews') || 
+      l.includes('magazine') || l.includes('journal') || l.includes('insights')) {
+    return 'publication';
+  }
+  
+  // Help/docs sites can still be outreach targets for guest content
+  if (l.includes('help') || l.includes('support') || l.includes('docs') || l.includes('learn')) {
+    return 'publication';
+  }
   
   return 'other';
 }
