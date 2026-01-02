@@ -162,7 +162,7 @@ export default function OnboardingPage() {
 
       {/* Main Content - Responsive and Centered */}
       <main className="flex items-center justify-center px-4 sm:px-6 lg:px-8 w-full min-h-screen pt-32 pb-8 lg:pt-0 lg:pb-0">
-        <div className={`w-full transition-all ${currentStep === 2 ? 'max-w-xl' : currentStep === 3 ? 'max-w-2xl' : currentStep === 5 ? 'max-w-3xl' : 'max-w-md'}`}>
+        <div className={`w-full transition-all ${currentStep === 2 ? 'max-w-xl' : currentStep === 3 || currentStep === 4 ? 'max-w-2xl' : currentStep === 5 ? 'max-w-3xl' : 'max-w-md'}`}>
           {renderStep()}
         </div>
       </main>
