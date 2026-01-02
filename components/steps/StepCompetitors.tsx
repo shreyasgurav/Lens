@@ -131,26 +131,36 @@ export default function StepCompetitors() {
           </button>
         </div>
 
-        {/* Competitors List - Flowing grid like topics */}
-        <div className="flex flex-wrap gap-2 max-h-96 overflow-y-auto">
+        {/* Competitors List - Wider cards with favicon, name, website */}
+        <div className="flex flex-wrap gap-3 max-h-96 overflow-y-auto">
           {competitors.map((comp) => (
             <div
               key={comp.id}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-full hover:bg-neutral-200 transition-colors group"
+              className="flex items-center gap-3 px-4 py-3 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors group min-w-[200px]"
             >
+              {/* Favicon on left */}
               {comp.favicon ? (
-                <img src={comp.favicon} alt="" className="w-5 h-5 rounded-full" />
+                <img src={comp.favicon} alt="" className="w-8 h-8 rounded flex-shrink-0" />
               ) : (
-                <div className="w-5 h-5 rounded-full bg-neutral-300 flex items-center justify-center">
-                  <span className="text-[10px] font-medium text-neutral-600">{comp.name[0]}</span>
+                <div className="w-8 h-8 rounded bg-neutral-300 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-medium text-neutral-600">{comp.name[0]}</span>
                 </div>
               )}
-              <span className="text-sm font-medium text-neutral-700">{comp.name}</span>
+              
+              {/* Name and website in center */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-neutral-900 truncate">{comp.name}</p>
+                {comp.website && (
+                  <p className="text-xs text-neutral-500 truncate">{comp.website}</p>
+                )}
+              </div>
+              
+              {/* Remove button on right */}
               <button
                 onClick={() => removeCompetitor(comp.id)}
-                className="p-0.5 text-neutral-400 hover:text-neutral-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-1.5 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-300 rounded-lg transition-colors flex-shrink-0"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           ))}
